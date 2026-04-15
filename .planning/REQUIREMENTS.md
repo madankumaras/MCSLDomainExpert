@@ -7,11 +7,11 @@
 
 ### RAG Knowledge Base
 
-- [ ] **RAG-01**: System ingests 26 pre-scraped MCSL KB articles from `docs/kb_snapshots/` (clean MCSL-only markdown, no WooCommerce/Magento noise) into `mcsl_knowledge`
-- [ ] **RAG-02**: System ingests TC sheet from Google Sheets (ID: 1oVtOaM2PesVR_TkuVaBKpbp_qQdmq4FQnN43Xew0FuY) into `mcsl_knowledge`
-- [ ] **RAG-03**: System indexes MCSL wiki (`/Users/madan/Documents/mcsl-wiki/wiki/` — 241 markdown docs: architecture, modules, patterns, ZI stories, Zendesk summaries) into `mcsl_knowledge`
-- [ ] **RAG-04**: System indexes storepepSAAS codebase (`server/src/shared/` — carrier adaptors, order processing, rate API, settings — skip node_modules/tests/migrations) into `mcsl_code_knowledge`
-- [ ] **RAG-05**: System indexes MCSL automation repo (`/Users/madan/Documents/mcsl-test-automation` — POM files, helpers, test files, carrier-envs/) into `mcsl_code_knowledge`
+- [x] **RAG-01**: System ingests 26 pre-scraped MCSL KB articles from `docs/kb_snapshots/` (clean MCSL-only markdown, no WooCommerce/Magento noise) into `mcsl_knowledge`
+- [x] **RAG-02**: System ingests TC sheet from Google Sheets (ID: 1oVtOaM2PesVR_TkuVaBKpbp_qQdmq4FQnN43Xew0FuY) into `mcsl_knowledge`
+- [x] **RAG-03**: System indexes MCSL wiki (`/Users/madan/Documents/mcsl-wiki/wiki/` — 241 markdown docs: architecture, modules, patterns, ZI stories, Zendesk summaries) into `mcsl_knowledge`
+- [x] **RAG-04**: System indexes storepepSAAS codebase (`server/src/shared/` — carrier adaptors, order processing, rate API, settings — skip node_modules/tests/migrations) into `mcsl_code_knowledge`
+- [x] **RAG-05**: System indexes MCSL automation repo (`/Users/madan/Documents/mcsl-test-automation` — POM files, helpers, test files, carrier-envs/) into `mcsl_code_knowledge`
 - [ ] **RAG-06**: System auto-embeds approved Trello card ACs and test cases after each sprint cycle into `mcsl_knowledge`
 - [ ] **RAG-07**: Domain Expert Chat answers MCSL app questions using RAG retrieval with ≤200 word responses
 
@@ -73,7 +73,7 @@
 - [x] **INFRA-02**: ChromaDB collections: `mcsl_knowledge` (docs) + `mcsl_code_knowledge` (automation code)
 - [x] **INFRA-03**: All env vars in .env: ANTHROPIC_API_KEY, CLAUDE_SONNET_MODEL, CLAUDE_HAIKU_MODEL, STORE, SHOPIFY_ACCESS_TOKEN, SHOPIFY_API_VERSION, MCSL_AUTOMATION_REPO_PATH
 - [x] **INFRA-04**: MCSL iframe structure handled: app content in `iframe[name="app-iframe"]`, Shopify admin content outside iframe
-- [ ] **INFRA-05**: Partial re-ingest supported: `python ingest/run_ingest.py --sources wiki shopify_actions`
+- [x] **INFRA-05**: Partial re-ingest supported: `python ingest/run_ingest.py --sources wiki shopify_actions`
 
 ## v2 Requirements
 
@@ -104,18 +104,18 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RAG-01 | Phase 1 | Pending |
-| RAG-02 | Phase 1 | Pending |
-| RAG-03 | Phase 1 | Pending |
-| RAG-04 | Phase 1 | Pending |
-| RAG-05 | Phase 1 | Pending |
+| RAG-01 | Phase 1 | Complete |
+| RAG-02 | Phase 1 | Complete |
+| RAG-03 | Phase 1 | Complete |
+| RAG-04 | Phase 1 | Complete |
+| RAG-05 | Phase 1 | Complete |
 | RAG-06 | Phase 1 | Pending |
 | RAG-07 | Phase 1 | Pending |
 | INFRA-01 | Phase 1 | Complete |
 | INFRA-02 | Phase 1 | Complete |
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
-| INFRA-05 | Phase 1 | Pending |
+| INFRA-05 | Phase 1 | Complete |
 | AGENT-01 | Phase 2 | Pending |
 | AGENT-02 | Phase 2 | Pending |
 | AGENT-03 | Phase 2 | Pending |

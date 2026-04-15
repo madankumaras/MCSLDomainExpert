@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02 — vectorstore.py + code_indexer.py ChromaDB modules
-last_updated: "2026-04-15T11:14:40.868Z"
+stopped_at: Completed 01-03 — 5-module ingest pipeline (kb_loader, sheets_loader, wiki_loader, codebase_loader, run_ingest)
+last_updated: "2026-04-15T11:24:04.676Z"
 last_activity: 2026-04-15 — 01-01 project scaffold complete
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 4
   percent: 20
 ---
 
@@ -52,6 +52,7 @@ Progress: [██░░░░░░░░] 20%
 *Updated after each plan completion*
 | Phase 01-foundation P01 | 19 | 2 tasks | 19 files |
 | Phase 01-foundation P02 | 5 | 2 tasks | 4 files |
+| Phase 01-foundation P03 | 6 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: 01-02: carrier-envs/ added to _SKIP_DIRS in code_indexer.py — contains per-carrier credential .env files that must never be indexed
 - [Phase 01-foundation]: 01-02: venv created at .venv/ for Python package isolation (system pip blocked by PEP 668)
 - [Phase 01-foundation]: 01-02: Source type labels storepepsaas_server + storepepsaas_client + automation (MCSL-specific, not FedEx backend/frontend)
+- [Phase 01-foundation]: source_type='sheets' (not 'test_cases') matches --sources arg name
+- [Phase 01-foundation]: 6 sources: storepepsaas split into storepepsaas_server + storepepsaas_client for independent re-ingest
+- [Phase 01-foundation]: STOREPEPSAAS_SERVER_PATH + STOREPEPSAAS_CLIENT_PATH added to config.py as aliases for per-source ingest
 
 ### Pending Todos
 
@@ -82,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-15T11:14:40.865Z
-Stopped at: Completed 01-02 — vectorstore.py + code_indexer.py ChromaDB modules
+Last session: 2026-04-15T11:24:04.674Z
+Stopped at: Completed 01-03 — 5-module ingest pipeline (kb_loader, sheets_loader, wiki_loader, codebase_loader, run_ingest)
 Resume file: None
