@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Domain Expert Chat returns a relevant, ≤200-word answer to any MCSL-specific question (e.g. "How do I add a UPS account?") using retrieved RAG context
   4. After a simulated approved Trello card cycle, the card's AC and test cases appear in ChromaDB and are retrievable by the chat
   5. All environment variables load correctly via explicit dotenv path — no silent failures when the app is launched from any working directory
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
 - [ ] 01-01: Project scaffold — directory structure, config.py, .env template, explicit dotenv path
@@ -49,7 +49,7 @@ Plans:
   4. The agent navigates carrier account configuration (App Settings → Carriers → Add/Edit) and can add or update a carrier account for FedEx, UPS, USPS, or DHL
   5. Carrier-specific special service flows complete without error: FedEx (signature, dry ice, alcohol, battery, HAL, insurance), UPS (signature, insurance, COD), USPS (signature, registered mail), DHL (insurance, signature, international)
   6. Stop flag is checked at each loop iteration — pressing stop during a run halts the agent within one iteration
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
 - [ ] 02-01: smart_ac_verifier.py scaffold — scenario extractor, domain expert query, planning prompt with carrier injection
@@ -70,7 +70,7 @@ Plans:
   3. All five document verification strategies produce readable output: badge check (DOC-01), ZIP download read (DOC-02), How To JSON extraction (DOC-03), Print Documents new-tab screenshot with visual label codes (DOC-04), and rate log screenshot (DOC-05)
   4. For a dry ice scenario, the agent automatically enables "Is Dry Ice Needed" on AppProducts before generating the label and unchecks it after — without human prompting
   5. Pre-requirements are injected and cleaned up correctly for all six scenario types: dry ice, alcohol, battery, signature, HAL, and insurance
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
 - [ ] 03-01: Manual label flow — Shopify Orders → More Actions → Generate Label → Get Rates → service selection → SideDock → Generate → Order Summary
@@ -90,7 +90,7 @@ Plans:
   3. Clicking the stop button during an active run halts the agent within one loop iteration and displays a "stopped" status in the UI
   4. The dashboard displays a per-scenario report with pass/fail/partial/qa_needed status, finding text, and screenshot evidence for each scenario
   5. Progress bar and live status text update as each scenario completes, giving the user a real-time view of verification progress
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
 - [ ] 04-01: pipeline_dashboard.py scaffold — Streamlit layout, Trello card input, pipeline trigger
