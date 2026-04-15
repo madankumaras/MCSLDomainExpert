@@ -43,7 +43,23 @@ The AI QA Agent must be able to autonomously verify any AC scenario for the MCSL
 - **MCSL automation repo:** `/Users/madan/Documents/mcsl-test-automation` — Playwright/TypeScript, same pattern as fedex-test-automation. Key difference: `carrier-envs/` folder with per-carrier `.env` files (ups.env, usps-ship.env, amazon.env, australia-post.env, etc.) instead of a single `.env`. Store: `mcsl-automation.myshopify.com`
 - **70% automation coverage:** Existing Playwright tests cover most core flows — high value from AI QA Agent since the remaining 30% can be explored
 - **TC Sheet:** https://docs.google.com/spreadsheets/d/1oVtOaM2PesVR_TkuVaBKpbp_qQdmq4FQnN43Xew0FuY/edit — primary source for test case definitions to ingest into RAG
-- **Knowledge Base:** https://www.pluginhive.com/knowledge-base/shopify-multi-carrier-shipping-label-app-faqs/ — 5 categories: Setting Up, Troubleshooting, Knowledgebase, FAQ, Use Cases
+- **Knowledge Base (26 articles):** Scraped clean to `docs/kb_snapshots/` — Setting Up, Troubleshooting, Carrier Setup, Packing Methods, Touchless Print, Purolator, UPS, USPS, DHL, Amazon, FedEx HAL, EU Shipping, India UPS, and more. **All MCSL-only, no WooCommerce/Magento noise.**
+- **MCSL Wiki:** `/Users/madan/Documents/mcsl-wiki/wiki/` — **241 markdown docs** covering:
+  - `architecture/` — backend (Express/MongoDB), frontend (React/Redux), tech stack, data flow, auth
+  - `modules/shipping/` — carrier system overview (43 carriers, adaptor pattern), carrier config, rate shopping, label generation, batch processing, tracking
+  - `modules/orders/` — order lifecycle, bulk actions (40+), returns, address management
+  - `modules/products/`, `modules/automation/`, `modules/integrations/`, `modules/stores/`
+  - `patterns/` — service layer, API conventions, component patterns, error handling, event sourcing
+  - `product/stories/` — 100+ ZI product stories (ZI-001 to ZI-105)
+  - `zendesk/summaries/` — 100+ real support ticket summaries → real customer pain points
+  - `support/ground-zero/` — pain ranking, sprint views
+  - **Ingest into:** `mcsl_knowledge` ChromaDB collection
+- **storepepSAAS codebase:** `/Users/madan/Documents/storepep-react/storepepSAAS/` — actual MCSL app backend (Node.js/Express, 1,684 JS files) + frontend (React, 699 JS files)
+  - Internal name: "StorePep" (MCSL app = storepep product)
+  - Key source dirs: `server/src/shared/storepepAdaptors/` (carrier adaptors), `server/src/shared/order/`, `server/src/shared/settings/`, `server/src/shared/ratesApi/`
+  - Key files: `carrierConfig.js`, `storePepConstants.js`, `serviceNames.js`, `OrderProcessingService.js`
+  - Carrier codes: FedEx=C2, UPS=C3, DHL=C1, EasyPost=C22
+  - **Ingest into:** `mcsl_code_knowledge` ChromaDB collection (focused on server/src/shared/ — skip node_modules, tests, migrations)
 - **Key MCSL difference from FedEx:** MCSL supports multiple carriers — each carrier has its own account config, service list, label format, and special services. The AI QA Agent must be carrier-aware when planning and executing scenarios.
 
 ## Key MCSL App Flows (vs FedEx)

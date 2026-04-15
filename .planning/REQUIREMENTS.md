@@ -7,11 +7,13 @@
 
 ### RAG Knowledge Base
 
-- [ ] **RAG-01**: System ingests and indexes MCSL knowledge base articles (Setting Up, Troubleshooting, Knowledgebase, FAQ, Use Cases) from pluginhive.com
-- [ ] **RAG-02**: System ingests TC sheet from Google Sheets (ID: 1oVtOaM2PesVR_TkuVaBKpbp_qQdmq4FQnN43Xew0FuY)
-- [ ] **RAG-03**: System indexes MCSL automation codebase (POM files, helpers, test files) into `mcsl_code_knowledge` ChromaDB collection
-- [ ] **RAG-04**: System auto-embeds approved Trello card ACs and test cases after each sprint cycle
-- [ ] **RAG-05**: Domain Expert Chat answers MCSL app questions using RAG retrieval with ≤200 word responses
+- [ ] **RAG-01**: System ingests 26 pre-scraped MCSL KB articles from `docs/kb_snapshots/` (clean MCSL-only markdown, no WooCommerce/Magento noise) into `mcsl_knowledge`
+- [ ] **RAG-02**: System ingests TC sheet from Google Sheets (ID: 1oVtOaM2PesVR_TkuVaBKpbp_qQdmq4FQnN43Xew0FuY) into `mcsl_knowledge`
+- [ ] **RAG-03**: System indexes MCSL wiki (`/Users/madan/Documents/mcsl-wiki/wiki/` — 241 markdown docs: architecture, modules, patterns, ZI stories, Zendesk summaries) into `mcsl_knowledge`
+- [ ] **RAG-04**: System indexes storepepSAAS codebase (`server/src/shared/` — carrier adaptors, order processing, rate API, settings — skip node_modules/tests/migrations) into `mcsl_code_knowledge`
+- [ ] **RAG-05**: System indexes MCSL automation repo (`/Users/madan/Documents/mcsl-test-automation` — POM files, helpers, test files, carrier-envs/) into `mcsl_code_knowledge`
+- [ ] **RAG-06**: System auto-embeds approved Trello card ACs and test cases after each sprint cycle into `mcsl_knowledge`
+- [ ] **RAG-07**: Domain Expert Chat answers MCSL app questions using RAG retrieval with ≤200 word responses
 
 ### AI QA Agent — Core
 
@@ -107,6 +109,8 @@
 | RAG-03 | Phase 1 | Pending |
 | RAG-04 | Phase 1 | Pending |
 | RAG-05 | Phase 1 | Pending |
+| RAG-06 | Phase 1 | Pending |
+| RAG-07 | Phase 1 | Pending |
 | INFRA-01 | Phase 1 | Pending |
 | INFRA-02 | Phase 1 | Pending |
 | INFRA-03 | Phase 1 | Pending |
@@ -148,7 +152,7 @@
 | DASH-05 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 44 total (RAG×5, INFRA×5, AGENT×7, CARRIER×6, LABEL×5, DOC×5, PRE×6, DASH×5)
+- v1 requirements: 46 total (RAG×7, INFRA×5, AGENT×7, CARRIER×6, LABEL×5, DOC×5, PRE×6, DASH×5)
 - Mapped to phases: 44
 - Unmapped: 0
 

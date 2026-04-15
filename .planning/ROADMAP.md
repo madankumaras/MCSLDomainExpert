@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 ### Phase 1: Foundation
 **Goal**: The knowledge base is ingested and queryable; Domain Expert Chat answers MCSL questions using RAG retrieval
 **Depends on**: Nothing (first phase)
-**Requirements**: RAG-01, RAG-02, RAG-03, RAG-04, RAG-05, INFRA-01, INFRA-02, INFRA-03, INFRA-04, INFRA-05
+**Requirements**: RAG-01, RAG-02, RAG-03, RAG-04, RAG-05, RAG-06, RAG-07, INFRA-01, INFRA-02, INFRA-03, INFRA-04, INFRA-05
 **Success Criteria** (what must be TRUE):
   1. Running `python ingest/run_ingest.py` successfully indexes MCSL knowledge base articles, TC sheet, and automation codebase into `mcsl_knowledge` and `mcsl_code_knowledge` ChromaDB collections with no errors
   2. Partial re-ingest (`--sources wiki shopify_actions`) completes and adds only the specified sources without duplicating existing embeddings
@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [ ] 01-01: Project scaffold — directory structure, config.py, .env template, explicit dotenv path
 - [ ] 01-02: ChromaDB setup — mcsl_knowledge and mcsl_code_knowledge collections, vectorstore.py, code_indexer.py
-- [ ] 01-03: Ingest pipeline — run_ingest.py with pluginhive knowledge base, TC sheet (Google Sheets), wiki, shopify_actions sources
+- [ ] 01-03: Ingest pipeline — run_ingest.py with 5 sources: KB articles (docs/kb_snapshots/), TC sheet (Google Sheets), MCSL wiki (/Users/madan/Documents/mcsl-wiki/wiki/), storepepSAAS codebase (server/src/shared/), mcsl-test-automation repo
 - [ ] 01-04: RAG auto-updater — rag_updater.py embeds approved Trello card ACs and test cases after each sprint
 - [ ] 01-05: Domain Expert Chat — chat_app.py Streamlit UI backed by mcsl_knowledge RAG retrieval
 
