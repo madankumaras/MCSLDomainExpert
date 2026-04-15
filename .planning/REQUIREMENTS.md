@@ -69,10 +69,10 @@
 
 ### Configuration & Infrastructure
 
-- [ ] **INFRA-01**: config.py uses explicit dotenv path (load_dotenv with Path(__file__).parent / ".env") — not plain load_dotenv()
-- [ ] **INFRA-02**: ChromaDB collections: `mcsl_knowledge` (docs) + `mcsl_code_knowledge` (automation code)
-- [ ] **INFRA-03**: All env vars in .env: ANTHROPIC_API_KEY, CLAUDE_SONNET_MODEL, CLAUDE_HAIKU_MODEL, STORE, SHOPIFY_ACCESS_TOKEN, SHOPIFY_API_VERSION, MCSL_AUTOMATION_REPO_PATH
-- [ ] **INFRA-04**: MCSL iframe structure handled: app content in `iframe[name="app-iframe"]`, Shopify admin content outside iframe
+- [x] **INFRA-01**: config.py uses explicit dotenv path (load_dotenv with Path(__file__).parent / ".env") — not plain load_dotenv()
+- [x] **INFRA-02**: ChromaDB collections: `mcsl_knowledge` (docs) + `mcsl_code_knowledge` (automation code)
+- [x] **INFRA-03**: All env vars in .env: ANTHROPIC_API_KEY, CLAUDE_SONNET_MODEL, CLAUDE_HAIKU_MODEL, STORE, SHOPIFY_ACCESS_TOKEN, SHOPIFY_API_VERSION, MCSL_AUTOMATION_REPO_PATH
+- [x] **INFRA-04**: MCSL iframe structure handled: app content in `iframe[name="app-iframe"]`, Shopify admin content outside iframe
 - [ ] **INFRA-05**: Partial re-ingest supported: `python ingest/run_ingest.py --sources wiki shopify_actions`
 
 ## v2 Requirements
@@ -111,10 +111,10 @@
 | RAG-05 | Phase 1 | Pending |
 | RAG-06 | Phase 1 | Pending |
 | RAG-07 | Phase 1 | Pending |
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
+| INFRA-02 | Phase 1 | Complete |
+| INFRA-03 | Phase 1 | Complete |
+| INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 1 | Pending |
 | AGENT-01 | Phase 2 | Pending |
 | AGENT-02 | Phase 2 | Pending |
