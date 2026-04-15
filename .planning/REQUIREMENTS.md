@@ -17,9 +17,9 @@
 
 ### AI QA Agent — Core
 
-- [ ] **AGENT-01**: Agent extracts testable scenarios from AC text as JSON array
-- [ ] **AGENT-02**: Agent queries Domain Expert RAG for expected behaviour, API signals, and key checks per scenario
-- [ ] **AGENT-03**: Agent generates a JSON execution plan (nav_clicks, look_for, api_to_watch, order_action, carrier)
+- [x] **AGENT-01**: Agent extracts testable scenarios from AC text as JSON array
+- [x] **AGENT-02**: Agent queries Domain Expert RAG for expected behaviour, API signals, and key checks per scenario
+- [x] **AGENT-03**: Agent generates a JSON execution plan (nav_clicks, look_for, api_to_watch, order_action, carrier)
 - [ ] **AGENT-04**: Agent runs agentic browser loop (up to 15 steps): observe/click/fill/scroll/navigate/switch_tab/close_tab/download_zip/download_file/verify/qa_needed
 - [ ] **AGENT-05**: Agent captures AX tree (depth 6, 250 lines) + screenshot (base64 PNG) + filtered network calls per step
 - [ ] **AGENT-06**: Agent reports pass/fail/partial/qa_needed verdict per scenario with finding text and screenshot evidence
@@ -116,9 +116,9 @@
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 1 | Complete |
-| AGENT-01 | Phase 2 | Pending |
-| AGENT-02 | Phase 2 | Pending |
-| AGENT-03 | Phase 2 | Pending |
+| AGENT-01 | Phase 2 | Complete |
+| AGENT-02 | Phase 2 | Complete |
+| AGENT-03 | Phase 2 | Complete |
 | AGENT-04 | Phase 2 | Pending |
 | AGENT-05 | Phase 2 | Pending |
 | AGENT-06 | Phase 2 | Pending |
