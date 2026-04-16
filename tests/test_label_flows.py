@@ -161,7 +161,64 @@ def test_pre06_insurance_preconditions():
     pass
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
-def test_label05_dangerous_products():
+def test_label05_dangerous_products(tmp_path):
     """LABEL-05: create_order with use_dangerous_products=True uses DANGEROUS_PRODUCTS_JSON."""
-    pass
+    import json
+    from unittest.mock import MagicMock, patch, call
+
+    # Create a carrier-env file with both SIMPLE and DANGEROUS product JSON
+    env_file = tmp_path / "test-carrier.env"
+    env_file.write_text(
+        'SHOPIFY_STORE_NAME=mcsl-automation\n'
+        'SHOPIFY_ACCESS_TOKEN=fake_token\n'
+        'SHOPIFY_API_VERSION=2023-01\n'
+        'SIMPLE_PRODUCTS_JSON=[{"product_id": 100, "variant_id": 1001}]\n'
+        'DANGEROUS_PRODUCTS_JSON=[{"product_id": 200, "variant_id": 2002}]\n',
+        encoding="utf-8",
+    )
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"order": {"id": "8888"}}
+    mock_response.raise_for_status.return_value = None
+
+    with patch("pipeline.order_creator.requests.post", return_value=mock_response) as mock_post:
+        from pipeline.order_creator import create_order, create_bulk_orders
+
+        # Test create_order with use_dangerous_products=True
+        order_id = create_order(env_file, use_dangerous_products=True)
+        assert order_id == "8888"
+
+        # Verify the body sent to Shopify uses variant_id from DANGEROUS_PRODUCTS_JSON
+        call_kwargs = mock_post.call_args
+        payload = call_kwargs[1]["json"]  # keyword arg
+        line_items = payload["order"]["line_items"]
+        assert len(line_items) == 1
+        assert line_items[0]["variant_id"] == 2002, (
+            f"Expected variant_id 2002 (from DANGEROUS_PRODUCTS_JSON) "
+            f"but got {line_items[0]['variant_id']}"
+        )
+
+        # Test create_order with use_dangerous_products=False uses SIMPLE_PRODUCTS_JSON
+        mock_post.reset_mock()
+        mock_response.json.return_value = {"order": {"id": "7777"}}
+        order_id_simple = create_order(env_file, use_dangerous_products=False)
+        assert order_id_simple == "7777"
+        call_kwargs2 = mock_post.call_args
+        payload2 = call_kwargs2[1]["json"]
+        line_items2 = payload2["order"]["line_items"]
+        assert line_items2[0]["variant_id"] == 1001, (
+            f"Expected variant_id 1001 (from SIMPLE_PRODUCTS_JSON) "
+            f"but got {line_items2[0]['variant_id']}"
+        )
+
+        # Test create_bulk_orders also accepts use_dangerous_products
+        mock_post.reset_mock()
+        mock_response.json.return_value = {"order": {"id": "9999"}}
+        order_ids = create_bulk_orders(env_file, count=2, use_dangerous_products=True)
+        assert len(order_ids) == 2
+        # Both calls should use dangerous products
+        for c in mock_post.call_args_list:
+            items = c[1]["json"]["order"]["line_items"]
+            assert items[0]["variant_id"] == 2002, (
+                f"bulk order should use variant_id 2002 but got {items[0]['variant_id']}"
+            )
