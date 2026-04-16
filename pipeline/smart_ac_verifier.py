@@ -1659,7 +1659,7 @@ def _verify_scenario(
             active_page = action["_new_page"]
 
         if "_zip_content" in action:
-            zip_ctx = action.get("_zip_summary", "")
+            zip_ctx = _format_zip_for_context(action["_zip_content"])
 
     else:
         result.status = "partial"
