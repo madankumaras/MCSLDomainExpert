@@ -798,6 +798,9 @@ _DECISION_PROMPT = dedent("""\
     You are verifying this AC scenario in the MCSL Multi-Carrier Shipping Shopify App.
 
     SCENARIO: {scenario}
+    CARRIER: {carrier_name} (internal code: {carrier_code})
+    Use {carrier_name}-specific service codes, account configuration, and special service flows.
+    If carrier is empty, treat as carrier-agnostic.
 
     DOMAIN EXPERT INSIGHT (what this feature does + what to look for):
     {expert_insight}
@@ -886,6 +889,7 @@ def _decide_next(
     Sends current page state (AX tree + screenshot + prior steps) to Claude and
     parses the returned JSON action. Falls back to qa_needed on unparseable response.
     """
+    carrier_name, carrier_code = _detect_carrier(scenario)
     steps_text = "\n".join(
         f"  {i + 1}. [{s.action}] {s.description} ({'OK' if s.success else 'FAIL'})"
         for i, s in enumerate(steps)
@@ -894,6 +898,8 @@ def _decide_next(
 
     prompt_text = _DECISION_PROMPT.format(
         scenario=scenario,
+        carrier_name=carrier_name or "(none)",
+        carrier_code=carrier_code or "—",
         expert_insight=expert_insight or "(not available)",
         mcsl_workflow_guide=_MCSL_WORKFLOW_GUIDE,
         url=url,

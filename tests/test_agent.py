@@ -243,10 +243,41 @@ def test_carrier_detection():
     """CARRIER-01: Carrier name detected from AC text is injected into planning prompt."""
     from pipeline.smart_ac_verifier import _detect_carrier
 
+    # Core carriers
     assert _detect_carrier("FedEx account configured") == ("FedEx", "C2")
-    assert _detect_carrier("UPS label generated") == ("UPS", "C3")
-    assert _detect_carrier("DHL shipment") == ("DHL", "C1")
-    assert _detect_carrier("unknown carrier") == ("", "")
+    assert _detect_carrier("UPS shipment with signature") == ("UPS", "C3")
+    assert _detect_carrier("DHL international") == ("DHL", "C1")
+    assert _detect_carrier("USPS registered mail") == ("USPS", "C22")
+    assert _detect_carrier("stamps.com delivery") == ("USPS Stamps", "C22")
+    assert _detect_carrier("easypost api") == ("EasyPost", "C22")
+    assert _detect_carrier("canada post package") == ("Canada Post", "C4")
+    # Unknown fallback
+    assert _detect_carrier("unknown carrier scenario") == ("", "")
+
+
+def test_plan_scenario_injects_carrier():
+    """CARRIER-01: _plan_scenario returns plan dict with carrier field set from AC text."""
+    from pipeline.smart_ac_verifier import _plan_scenario
+    from unittest.mock import MagicMock
+
+    mock_claude = MagicMock()
+    mock_claude.invoke.return_value.content = """{
+        "nav_clicks": ["Shipping"],
+        "look_for": ["label generated"],
+        "api_to_watch": ["/api/orders"],
+        "order_action": "create_new",
+        "carrier": "FedEx",
+        "plan": "Navigate to Shipping and generate dry ice label"
+    }"""
+    result = _plan_scenario(
+        scenario="FedEx dry ice scenario",
+        app_url="https://admin.shopify.com/store/test-store/apps/mcsl-qa",
+        code_ctx="",
+        expert_insight="",
+        claude=mock_claude,
+    )
+    assert isinstance(result, dict)
+    assert result.get("carrier") == "FedEx"
 
 
 @pytest.mark.skip(reason="Wave 0 stub — AGENT-01")
