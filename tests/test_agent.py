@@ -209,6 +209,36 @@ def test_action_handlers():
     assert isinstance(result_close, bool)
 
 
+def test_decide_next_valid_response():
+    """_decide_next returns parsed action dict when claude returns valid JSON."""
+    from pipeline.smart_ac_verifier import _decide_next
+    from unittest.mock import MagicMock
+
+    claude = MagicMock()
+    claude.invoke.return_value.content = '{"action": "click", "selector": "Generate Label"}'
+
+    result = _decide_next(
+        claude, "scenario text", "https://example.com",
+        "ax tree", [], [], "ctx", 1, scr=None, expert_insight=""
+    )
+    assert result.get("action") == "click"
+
+
+def test_decide_next_garbage_fallback():
+    """_decide_next returns qa_needed fallback when claude returns unparseable garbage."""
+    from pipeline.smart_ac_verifier import _decide_next
+    from unittest.mock import MagicMock
+
+    claude = MagicMock()
+    claude.invoke.return_value.content = "I cannot determine what to do next."
+
+    result = _decide_next(
+        claude, "scenario text", "https://example.com",
+        "ax tree", [], [], "ctx", 1, scr=None, expert_insight=""
+    )
+    assert result.get("action") == "qa_needed"
+
+
 def test_carrier_detection():
     """CARRIER-01: Carrier name detected from AC text is injected into planning prompt."""
     from pipeline.smart_ac_verifier import _detect_carrier
