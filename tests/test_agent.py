@@ -280,27 +280,90 @@ def test_plan_scenario_injects_carrier():
     assert result.get("carrier") == "FedEx"
 
 
-@pytest.mark.skip(reason="Wave 0 stub — AGENT-01")
-def test_order_creator():
-    """AGENT-01 (order): create_order creates a Shopify REST order and returns order id."""
-    try:
-        from pipeline.order_creator import create_order
-    except ImportError:
-        pytest.skip("pipeline.order_creator not yet implemented")
-    # stub — no live Shopify call in unit tests
-    assert True
+def test_order_creator(tmp_path):
+    """AGENT-04 (order): create_order creates a Shopify REST order and returns order id."""
+    import json
+    from unittest.mock import MagicMock, patch
+
+    # Create a temporary carrier-env file
+    env_file = tmp_path / "test-carrier.env"
+    env_file.write_text(
+        'SHOPIFY_STORE_NAME=mcsl-automation\n'
+        'SHOPIFY_ACCESS_TOKEN=fake_token\n'
+        'SHOPIFY_API_VERSION=2023-01\n'
+        'SIMPLE_PRODUCTS_JSON=[{"product_id": 123, "variant_id": 456}]\n',
+        encoding="utf-8",
+    )
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"order": {"id": "9999"}}
+    mock_response.raise_for_status.return_value = None
+
+    with patch("pipeline.order_creator.requests.post", return_value=mock_response) as mock_post:
+        from pipeline.order_creator import create_order, create_bulk_orders, _read_carrier_env
+
+        # Test _read_carrier_env
+        env_data = _read_carrier_env(env_file)
+        assert env_data.get("SHOPIFY_ACCESS_TOKEN") == "fake_token"
+        assert env_data.get("SHOPIFY_STORE_NAME") == "mcsl-automation"
+        assert "SIMPLE_PRODUCTS_JSON" in env_data
+
+        # Test create_order returns order ID string
+        order_id = create_order(env_file)
+        assert order_id == "9999"
+        assert mock_post.called
+        call_kwargs = mock_post.call_args
+        assert "X-Shopify-Access-Token" in call_kwargs[1]["headers"]
+
+        # Test create_bulk_orders returns list of 2 IDs
+        mock_post.reset_mock()
+        order_ids = create_bulk_orders(env_file, count=2)
+        assert isinstance(order_ids, list)
+        assert len(order_ids) == 2
+        assert all(oid == "9999" for oid in order_ids)
 
 
-@pytest.mark.skip(reason="Wave 0 stub — AGENT-06")
 def test_verdict_reporting():
-    """AGENT-06: VerificationReport and ScenarioResult dataclasses are importable and correct."""
-    try:
-        from pipeline.smart_ac_verifier import VerificationReport, ScenarioResult
-    except ImportError:
-        pytest.skip("pipeline.smart_ac_verifier not yet implemented")
-    report = VerificationReport(card_name="Test Card", app_url="https://example.com")
-    assert report.passed == 0
-    assert report.failed == 0
-    scenario = ScenarioResult(scenario="Test scenario")
-    assert scenario.status == "pending"
-    assert hasattr(scenario, "carrier")
+    """AGENT-06: VerificationReport.to_dict() returns correct summary counts and stop_flag halts verify_ac."""
+    from pipeline.smart_ac_verifier import VerificationReport, ScenarioResult
+    from unittest.mock import patch
+
+    # --- Part 1: to_dict() summary counts ---
+    report = VerificationReport(
+        card_name="Test Card",
+        scenarios=[
+            ScenarioResult(scenario="s1", status="pass", finding="ok", carrier="FedEx"),
+            ScenarioResult(scenario="s2", status="fail", finding="label not found", carrier="UPS"),
+        ],
+    )
+    d = report.to_dict()
+    assert d["summary"] == {"pass": 1, "fail": 1, "partial": 0, "qa_needed": 0}
+    assert d["total"] == 2
+    assert d["card_name"] == "Test Card"
+    assert "scenarios" in d
+    assert "duration_seconds" in d
+
+    # --- Part 2: stop_flag=lambda: True halts before first scenario ---
+    with patch("pipeline.smart_ac_verifier._extract_scenarios", return_value=["scenario 1"]), \
+         patch("pipeline.smart_ac_verifier._launch_browser") as mock_browser, \
+         patch("pipeline.smart_ac_verifier._ask_domain_expert", return_value="insight"), \
+         patch("pipeline.smart_ac_verifier._code_context", return_value="ctx"), \
+         patch("pipeline.smart_ac_verifier._plan_scenario", return_value={}), \
+         patch("pipeline.smart_ac_verifier.ChatAnthropic"):
+        # mock_browser returns (pw, browser, ctx, page) tuple
+        mock_pw = __import__("unittest.mock", fromlist=["MagicMock"]).MagicMock()
+        mock_browser.return_value = (mock_pw, mock_pw, mock_pw, mock_pw)
+
+        from pipeline.smart_ac_verifier import verify_ac
+        result = verify_ac(
+            ac_text="Given a scenario",
+            card_name="Test Card",
+            stop_flag=lambda: True,
+        )
+    assert isinstance(result, VerificationReport)
+    assert len(result.scenarios) == 0  # stopped before first scenario
+
+    # --- Part 3: ScenarioResult defaults ---
+    s = ScenarioResult(scenario="Test scenario")
+    assert s.status == "pending"
+    assert hasattr(s, "carrier")
