@@ -534,16 +534,72 @@ def test_pre04_signature_preconditions():
     )
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_pre05_hal_preconditions():
-    """PRE-05: HAL preconditions include label_flow[:5] + SideDock steps."""
-    pass
+    """PRE-05: HAL preconditions include label_flow[:4] + SideDock Hold at Location steps."""
+    from pipeline.smart_ac_verifier import _get_preconditions
+
+    steps = _get_preconditions(scenario_text="hold at location shipment", carrier="fedex")
+    assert isinstance(steps, list), f"_get_preconditions must return a list, got {type(steps)}"
+
+    # Must include Hold at Location step
+    has_hal_step = any("Hold at Location" in s for s in steps)
+    assert has_hal_step, (
+        f"PRE-05 steps must contain 'Hold at Location' step. Steps: {steps}"
+    )
+
+    # Must reference SideDock
+    has_sidedock = any("SideDock" in s for s in steps)
+    assert has_sidedock, (
+        f"PRE-05 steps must reference 'SideDock'. Steps: {steps}"
+    )
+
+    # List must be long enough: label_flow[:4] + hal_steps (5) + label_flow[4:] (2) = 11
+    assert len(steps) > 5, (
+        f"PRE-05 steps must have more than 5 entries (label_flow[:4] + HAL + Generate Label). Got {len(steps)}: {steps}"
+    )
+
+    # Must NOT include AppProducts navigation (HAL uses SideDock on Order Summary, not product settings)
+    has_appproducts = any(
+        "hamburger" in s.lower() or "AppProducts" in s or "Products" in s
+        for s in steps
+    )
+    assert not has_appproducts, (
+        f"PRE-05 (HAL) must NOT include AppProducts navigation. Steps: {steps}"
+    )
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_pre06_insurance_preconditions():
-    """PRE-06: insurance preconditions include label_flow[:5] + SideDock insurance steps."""
-    pass
+    """PRE-06: insurance preconditions include label_flow[:4] + SideDock insurance steps."""
+    from pipeline.smart_ac_verifier import _get_preconditions
+
+    steps = _get_preconditions(scenario_text="insurance coverage shipment", carrier="fedex")
+    assert isinstance(steps, list), f"_get_preconditions must return a list, got {type(steps)}"
+
+    # Must include Insurance step
+    has_insurance_step = any("Insurance" in s for s in steps)
+    assert has_insurance_step, (
+        f"PRE-06 steps must contain 'Insurance' step. Steps: {steps}"
+    )
+
+    # Must reference SideDock
+    has_sidedock = any("SideDock" in s for s in steps)
+    assert has_sidedock, (
+        f"PRE-06 steps must reference 'SideDock'. Steps: {steps}"
+    )
+
+    # List must be long enough: label_flow[:4] + insurance_steps (4) + label_flow[4:] (2) = 10
+    assert len(steps) > 5, (
+        f"PRE-06 steps must have more than 5 entries (label_flow[:4] + Insurance + Generate Label). Got {len(steps)}: {steps}"
+    )
+
+    # Must NOT include AppProducts navigation (Insurance uses SideDock on Order Summary)
+    has_appproducts = any(
+        "hamburger" in s.lower() or "AppProducts" in s
+        for s in steps
+    )
+    assert not has_appproducts, (
+        f"PRE-06 (Insurance) must NOT include AppProducts navigation. Steps: {steps}"
+    )
 
 
 def test_label05_dangerous_products(tmp_path):
