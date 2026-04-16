@@ -44,11 +44,11 @@
 
 ### AI QA Agent — Document Verification
 
-- [ ] **DOC-01**: Agent verifies label existence via "label generated" badge on Order Summary
-- [ ] **DOC-02**: Agent verifies physical docs via More Actions → Download Documents (ZIP → read PDFs/files)
-- [ ] **DOC-03**: Agent verifies label request XML/JSON fields via Label Summary 3-dots (⋯) → View Log → `.dialogHalfDivParent` dialog → read text content
-- [ ] **DOC-04**: Agent verifies visual label codes via Print Documents → switch_tab → screenshot → read codes → close_tab
-- [ ] **DOC-05**: Agent views rate logs via ⋯ → View Logs → screenshot dialog (before label generation)
+- [x] **DOC-01**: Agent verifies label existence via "label generated" badge on Order Summary
+- [x] **DOC-02**: Agent verifies physical docs via More Actions → Download Documents (ZIP → read PDFs/files)
+- [x] **DOC-03**: Agent verifies label request XML/JSON fields via Label Summary 3-dots (⋯) → View Log → `.dialogHalfDivParent` dialog → read text content
+- [x] **DOC-04**: Agent verifies visual label codes via Print Documents → switch_tab → screenshot → read codes → close_tab
+- [x] **DOC-05**: Agent views rate logs via ⋯ → View Logs → screenshot dialog (before label generation)
 
 ### AI QA Agent — Pre-Requirements
 
@@ -134,11 +134,11 @@
 | LABEL-03 | Phase 3 | Complete |
 | LABEL-04 | Phase 3 | Complete |
 | LABEL-05 | Phase 3 | Complete |
-| DOC-01 | Phase 3 | Pending |
-| DOC-02 | Phase 3 | Pending |
-| DOC-03 | Phase 3 | Pending |
-| DOC-04 | Phase 3 | Pending |
-| DOC-05 | Phase 3 | Pending |
+| DOC-01 | Phase 3 | Complete |
+| DOC-02 | Phase 3 | Complete |
+| DOC-03 | Phase 3 | Complete |
+| DOC-04 | Phase 3 | Complete |
+| DOC-05 | Phase 3 | Complete |
 | PRE-01 | Phase 3 | Pending |
 | PRE-02 | Phase 3 | Pending |
 | PRE-03 | Phase 3 | Pending |
