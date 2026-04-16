@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-05 — _get_preconditions() with 4 carrier branches + precondition injection in _plan_scenario
-last_updated: "2026-04-16T05:18:29.884Z"
+stopped_at: Completed 02-06-PLAN.md — order_creator.py + order_action wiring in _verify_scenario
+last_updated: "2026-04-16T05:47:23.029Z"
 last_activity: 2026-04-15 — 02-01 agent scaffold + Wave 0 stubs complete
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 12
-  completed_plans: 8
+  completed_plans: 9
   percent: 33
 ---
 
@@ -58,6 +58,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 02-ai-qa-agent-core P03 | 7 | 2 tasks | 2 files |
 | Phase 02-ai-qa-agent-core P04 | 3 | 2 tasks | 2 files |
 | Phase 02-ai-qa-agent-core P05 | 3 | 1 tasks | 1 files |
+| Phase 02-ai-qa-agent-core P06 | 25 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,9 @@ Recent decisions affecting current work:
 - [Phase 02-ai-qa-agent-core]: preconditions_block appended to _PLAN_PROMPT string rather than adding a new format placeholder — avoids breaking existing prompt structure
 - [Phase 02-ai-qa-agent-core]: HAL and COD/insurance SideDock steps inserted at label_flow[5:] (before Generate Label click) to match live app flow
 - [Phase 02-ai-qa-agent-core]: DHL international commercial invoice verification appended after full label_flow (post-LABEL CREATED)
+- [Phase 02-ai-qa-agent-core]: MCSL order creator reads SIMPLE_PRODUCTS_JSON from per-carrier .env files, not productsconfig.json
+- [Phase 02-ai-qa-agent-core]: Order ID injected into ctx as 'TEST ORDER ID: {id}' prefix before the agentic step loop so Claude knows which order to navigate to
+- [Phase 02-ai-qa-agent-core]: VerificationReport gains to_dict(), duration_seconds, and summary property dict for Phase 4 Streamlit dashboard
 
 ### Pending Todos
 
@@ -106,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T05:18:29.881Z
-Stopped at: Completed 02-05 — _get_preconditions() with 4 carrier branches + precondition injection in _plan_scenario
+Last session: 2026-04-16T05:47:23.027Z
+Stopped at: Completed 02-06-PLAN.md — order_creator.py + order_action wiring in _verify_scenario
 Resume file: None
