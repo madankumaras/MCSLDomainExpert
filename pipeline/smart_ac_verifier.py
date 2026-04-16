@@ -16,7 +16,7 @@ MCSL-specific adaptations vs FedEx version:
   - _MCSL_WORKFLOW_GUIDE replaces _APP_WORKFLOW_GUIDE (MCSL order grid navigation)
   - App slug: mcsl-qa (NOT testing-553)
   - iframe selector: iframe[name="app-iframe"]
-  - MCSL label flow: App order grid → Account Card → Generate Label (NOT Shopify More Actions)
+  - MCSL label flow: ORDERS tab → filter by Order Id → Order Summary → Generate Label → LABEL CREATED
 """
 from __future__ import annotations
 
