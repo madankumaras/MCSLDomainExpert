@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-02 — browser loop + state capture (_ax_tree, _screenshot, _network, _verify_scenario, _launch_browser)
-last_updated: "2026-04-16T04:46:37.880Z"
+stopped_at: Completed 02-03 — _do_action (11 handlers) + _decide_next + _DECISION_PROMPT
+last_updated: "2026-04-16T05:08:18.522Z"
 last_activity: 2026-04-15 — 02-01 agent scaffold + Wave 0 stubs complete
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 12
-  completed_plans: 5
+  completed_plans: 6
   percent: 33
 ---
 
@@ -55,6 +55,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 01-foundation P03 | 6 | 2 tasks | 9 files |
 | Phase 02-ai-qa-agent-core P01 | 5 | 2 tasks | 2 files |
 | Phase 02-ai-qa-agent-core P02 | 18 | 2 tasks | 2 files |
+| Phase 02-ai-qa-agent-core P03 | 7 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 02-ai-qa-agent-core]: 02-01: venv at MCSLDomainExpert/.venv (parent repo), not worktree — absolute path required for pytest
 - [Phase 02-ai-qa-agent-core]: 02-02: _network returns str (newline-joined) not list[str] — test contract requires isinstance(net, str)
 - [Phase 02-ai-qa-agent-core]: 02-02: ScenarioResult gains finding + evidence_screenshot fields; VerificationStep fields keyword-only with defaults
+- [Phase 02-ai-qa-agent-core]: 02-03: download_zip and download_file are Phase 2 stubs (log + return False) — full implementation deferred to Phase 3
+- [Phase 02-ai-qa-agent-core]: 02-03: _decide_next falls back to qa_needed when Claude returns unparseable or missing-action JSON response
+- [Phase 02-ai-qa-agent-core]: 02-03: _DECISION_PROMPT explicitly forbids Shopify More Actions for MCSL label generation; uses _MCSL_WORKFLOW_GUIDE inline
 
 ### Pending Todos
 
@@ -94,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-16T04:46:37.878Z
-Stopped at: Completed 02-02 — browser loop + state capture (_ax_tree, _screenshot, _network, _verify_scenario, _launch_browser)
+Last session: 2026-04-16T05:08:18.518Z
+Stopped at: Completed 02-03 — _do_action (11 handlers) + _decide_next + _DECISION_PROMPT
 Resume file: None
