@@ -522,6 +522,25 @@ After "Generate Label" click, verify status reaches LABEL CREATED:
 - Label Summary table visible: getByText('Label Summary')
 - SUCCESS cell visible: getByRole('cell', name='SUCCESS').first()
 
+### DOC-02: Download Documents ZIP
+On Order Summary after LABEL CREATED:
+1. Find "Download Documents" button (text may vary — probe AX tree if not found)
+2. action: download_zip, target: "Download Documents"
+3. Result: action["_zip_content"] populated with file names and content snippets
+4. Claude verifies expected document files are present (PDF size notes, CSV content, etc.)
+
+### DOC-03: Label Request XML/JSON (3-dots on Label Summary row)
+After LABEL CREATED, in the Label Summary table:
+1. Click 3-dots (⋯) on the label row:
+   appFrame TD selector: div[class="order-summary-root"]>...>tbody>tr>td:nth-child(8)
+   Use .nth(rowIndex) for a specific row
+2. Click "View Log" menuitem:
+   appFrame.locator('div[role="presentation"]>div:nth-child(2)>ul>li:nth-child(1)').first()
+3. Wait for .dialogHalfDivParent to be visible
+4. Read textContent() → strip whitespace → verify expected XML/JSON field names are present
+5. Close dialog via closeLabelRequestSummary button
+NOTE: Do NOT use download_zip here — this is a dialog, not a file download. FedEx "How To" flow does NOT apply to MCSL.
+
 ### DOC-04: Print Documents (New Tab Screenshot)
 ⚠️ IMPORTANT: Print Documents opens a NEW TAB — do NOT use download_zip here.
 Steps:
@@ -530,6 +549,19 @@ Steps:
 3. action: switch_tab → active_page = new tab
 4. Take screenshot → Claude reads label service codes visible on label (ICE, ALCOHOL, ELB, ASR, DSR)
 5. action: close_tab → returns to Order Summary
+
+### DOC-05: Rate Log Screenshot (BEFORE label generation)
+On Order Summary, after rates load, BEFORE clicking Generate Label:
+1. FIRST: Click ViewallRateSummary (getByTitle 'View all Rate Summary') — table is COLLAPSED by default
+2. Wait for .rate-summary-table-container to be visible
+3. Click 3-dots button on rate summary row:
+   .rate-summary-table tbody tr td:last-child button[aria-haspopup="true"]
+4. Click View Log menuitem:
+   div[role="presentation"]>div:nth-child(2)>ul>li:nth-child(1) (first)
+5. Log dialog: .dialogHalfDivParent — contains JSON/XML request text
+6. Screenshot dialog → Claude verifies required fields
+7. Close: getByRole('button', name='Close')
+WARNING: Must expand ViewallRateSummary FIRST — 3-dots button is not visible on collapsed table.
 """)
 
 
