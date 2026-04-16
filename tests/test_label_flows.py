@@ -71,10 +71,24 @@ def test_manual_label_flow_plan():
     )
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_auto_generate_flow():
-    """LABEL-02: Agent handles Auto-Generate Label flow via Actions menu."""
-    pass
+    """LABEL-02: _MCSL_WORKFLOW_GUIDE contains Actions menu pattern for Auto-Generate Label flow."""
+    from pipeline.smart_ac_verifier import _MCSL_WORKFLOW_GUIDE
+
+    # Guide must reference the Actions button locator or description
+    assert "Actions button" in _MCSL_WORKFLOW_GUIDE or "buttons-row > button:nth-child(4)" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE must describe the Actions button (buttons-row > button:nth-child(4))"
+    )
+
+    # Guide must reference Generate Label as an Actions menu item
+    assert "Generate Label" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE must mention 'Generate Label' as an Actions menu item"
+    )
+
+    # Guide must reference Label Batch page (same as bulk flow)
+    assert "Label Batch" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE must reference 'Label Batch' page in Actions Menu Label flow"
+    )
 
 
 @pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
