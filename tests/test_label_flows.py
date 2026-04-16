@@ -195,6 +195,128 @@ def test_doc02_download_zip():
     )
 
 
+def test_doc02_download_zip_handler():
+    """DOC-02 handler: _do_action download_zip extracts ZIP content into action['_zip_content']."""
+    import io
+    import zipfile
+    from unittest.mock import MagicMock, patch
+
+    # Build an in-memory ZIP with a JSON file
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("Download Documents.json", '{"shipment_id": "123"}')
+    buf.seek(0)
+    zip_bytes = buf.read()
+
+    # Mock a temporary file path that download.save_as writes the ZIP into
+    import tempfile, os, shutil
+
+    tmp_dir = tempfile.mkdtemp(prefix="test_sav_zip_")
+    zip_path = os.path.join(tmp_dir, "mcsl_download.zip")
+    with open(zip_path, "wb") as f:
+        f.write(zip_bytes)
+
+    mock_download = MagicMock()
+
+    def fake_save_as(path):
+        shutil.copy(zip_path, path)
+
+    mock_download.save_as.side_effect = fake_save_as
+
+    mock_dl_info = MagicMock()
+    mock_dl_info.__enter__ = MagicMock(return_value=mock_dl_info)
+    mock_dl_info.__exit__ = MagicMock(return_value=False)
+    mock_dl_info.value = mock_download
+
+    mock_frame = MagicMock()
+    mock_el = MagicMock()
+    mock_el.count.return_value = 1
+    mock_el.first = mock_el
+    mock_frame.get_by_role.return_value = mock_el
+
+    mock_page = MagicMock()
+    mock_page.frames = []
+    mock_page.expect_download.return_value = mock_dl_info
+    mock_page.get_by_role.return_value = mock_el
+
+    action = {"action": "download_zip", "target": "Download Documents"}
+
+    with patch("pipeline.smart_ac_verifier._get_app_frame", return_value=mock_frame):
+        from pipeline.smart_ac_verifier import _do_action
+        result = _do_action(mock_page, action)
+
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    assert result is True, f"download_zip _do_action should return True, got {result}"
+    assert "_zip_content" in action, "action should have '_zip_content' after download_zip"
+    assert "Download Documents.json" in action["_zip_content"], (
+        f"_zip_content should contain 'Download Documents.json', keys: {list(action['_zip_content'].keys())}"
+    )
+    assert action["_zip_content"]["Download Documents.json"]["shipment_id"] == "123", (
+        f"Parsed JSON should have shipment_id='123', got: {action['_zip_content']['Download Documents.json']}"
+    )
+
+
+def test_doc03_how_to_zip():
+    """DOC-02 handler: download_zip works with mixed content (JSON + CSV)."""
+    import io
+    import zipfile
+    from unittest.mock import MagicMock, patch
+    import tempfile, os, shutil
+
+    # Build an in-memory ZIP with JSON + CSV files
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("data.json", '{"key": "value"}')
+        zf.writestr("report.csv", "col1,col2\nval1,val2\n")
+    buf.seek(0)
+    zip_bytes = buf.read()
+
+    tmp_dir = tempfile.mkdtemp(prefix="test_how_to_zip_")
+    zip_path = os.path.join(tmp_dir, "mcsl_download.zip")
+    with open(zip_path, "wb") as f:
+        f.write(zip_bytes)
+
+    mock_download = MagicMock()
+
+    def fake_save_as(path):
+        shutil.copy(zip_path, path)
+
+    mock_download.save_as.side_effect = fake_save_as
+
+    mock_dl_info = MagicMock()
+    mock_dl_info.__enter__ = MagicMock(return_value=mock_dl_info)
+    mock_dl_info.__exit__ = MagicMock(return_value=False)
+    mock_dl_info.value = mock_download
+
+    mock_frame = MagicMock()
+    mock_el = MagicMock()
+    mock_el.count.return_value = 1
+    mock_el.first = mock_el
+    mock_frame.get_by_role.return_value = mock_el
+
+    mock_page = MagicMock()
+    mock_page.frames = []
+    mock_page.expect_download.return_value = mock_dl_info
+    mock_page.get_by_role.return_value = mock_el
+
+    action = {"action": "download_zip", "target": "Download"}
+
+    with patch("pipeline.smart_ac_verifier._get_app_frame", return_value=mock_frame):
+        from pipeline.smart_ac_verifier import _do_action
+        result = _do_action(mock_page, action)
+
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    assert result is True, f"download_zip should return True for mixed ZIP, got {result}"
+    assert "_zip_content" in action
+    content = action["_zip_content"]
+    assert "data.json" in content, f"JSON file should be in _zip_content, keys={list(content.keys())}"
+    assert "report.csv" in content, f"CSV file should be in _zip_content, keys={list(content.keys())}"
+    assert isinstance(content["data.json"], dict), "JSON content should be parsed as dict"
+    assert isinstance(content["report.csv"], str), "CSV content should be a string"
+
+
 @pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_doc02_download_file_csv():
     """DOC-02 (file): download_file handler reads CSV content into _file_content."""
