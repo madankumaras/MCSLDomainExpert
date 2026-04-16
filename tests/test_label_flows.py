@@ -97,10 +97,30 @@ def test_bulk_label_flow():
     pass
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_return_label_flow():
-    """LABEL-04: Agent handles Return Label flow (Actions → Create Return Label → Submit)."""
-    pass
+    """LABEL-04: _MCSL_WORKFLOW_GUIDE contains Return Label flow with existing_fulfilled note."""
+    from pipeline.smart_ac_verifier import _MCSL_WORKFLOW_GUIDE
+
+    # Guide must mention Create Return Label as Actions menu item
+    assert "Create Return Label" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE must mention 'Create Return Label' in Return Label flow"
+    )
+
+    # Guide must reference the Submit button
+    assert "Submit" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE must reference 'Submit' button for Return Label modal"
+    )
+
+    # Guide must mention Return Created status
+    assert "Return Created" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE must mention 'Return Created' status"
+    )
+
+    # Guide must note that Return Label requires an already-fulfilled order
+    assert "existing_fulfilled" in _MCSL_WORKFLOW_GUIDE or "already-fulfilled" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE must warn that Return Label requires an already-fulfilled order "
+        "(use order_action: existing_fulfilled)"
+    )
 
 
 @pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
