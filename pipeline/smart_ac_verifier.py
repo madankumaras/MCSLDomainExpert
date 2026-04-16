@@ -1316,11 +1316,94 @@ def _do_action(page: Any, action: dict, app_base: str = "") -> bool:
             return False
 
     if atype == "download_file":
-        logger.warning(
-            "download_file action not yet implemented (Phase 3). "
-            "action=%s", action
-        )
-        return False
+        try:
+            import csv as _csv
+            import shutil as _shutil
+            tmp_dir = tempfile.mkdtemp(prefix="sav_file_")
+            frame = _get_app_frame(page)
+            target = action.get("target", action.get("selector", "")).strip()
+
+            el_to_click = None
+            for fn in [
+                lambda: frame.get_by_role("button", name=target, exact=False),
+                lambda: frame.get_by_role("link",   name=target, exact=False),
+                lambda: frame.get_by_text(target, exact=False),
+                lambda: page.get_by_role("button",  name=target, exact=False),
+                lambda: page.get_by_role("link",    name=target, exact=False),
+                lambda: page.get_by_text(target, exact=False),
+            ]:
+                try:
+                    el = fn()
+                    if el.count() > 0:
+                        el_to_click = el.first
+                        break
+                except Exception:
+                    continue
+
+            if el_to_click is None:
+                logger.debug("download_file: target %r not found", target)
+                _shutil.rmtree(tmp_dir, ignore_errors=True)
+                return False
+
+            with page.expect_download(timeout=30_000) as dl_info:
+                el_to_click.click(timeout=5_000)
+
+            dl = dl_info.value
+            suggested = getattr(dl, "suggested_filename", "") or "download"
+            ext = suggested.rsplit(".", 1)[-1].lower() if "." in suggested else ""
+            file_path = os.path.join(tmp_dir, suggested or "download")
+            dl.save_as(file_path)
+            page.wait_for_timeout(500)
+
+            file_size = os.path.getsize(file_path)
+            result_content: "dict | str"
+
+            if ext == "csv":
+                with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+                    raw = fh.read()
+                reader = _csv.reader(raw.splitlines())
+                rows = list(reader)
+                headers = rows[0] if rows else []
+                data_rows = rows[1:] if len(rows) > 1 else []
+                result_content = {
+                    "headers": headers,
+                    "row_count": len(data_rows),
+                    "sample_rows": data_rows[:5],
+                    "raw_preview": raw[:500],
+                }
+            elif ext in ("xlsx", "xls"):
+                try:
+                    import openpyxl as _openpyxl
+                    wb = _openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                    ws = wb.active
+                    all_rows = list(ws.iter_rows(values_only=True))
+                    headers = list(all_rows[0]) if all_rows else []
+                    data_rows = [list(r) for r in all_rows[1:]]
+                    result_content = {
+                        "headers": headers,
+                        "row_count": len(data_rows),
+                        "sample_rows": data_rows[:5],
+                        "raw_preview": "",
+                    }
+                    wb.close()
+                except Exception:
+                    result_content = f"(Excel — {file_size:,} bytes)"
+            elif ext == "pdf":
+                result_content = f"(PDF — {file_size:,} bytes)"
+            else:
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+                        result_content = fh.read(2000)
+                except Exception:
+                    result_content = f"({ext.upper() or 'BINARY'} — {file_size:,} bytes)"
+
+            action["_file_content"] = result_content
+            logger.info("download_file: saved %r (%d bytes, ext=%s)", suggested, file_size, ext)
+            _shutil.rmtree(tmp_dir, ignore_errors=True)
+            return True
+        except Exception as e:
+            logger.debug("download_file failed: %s", e)
+            return False
 
     # click and fill require a frame-aware locator
     frame = _get_app_frame(page)
