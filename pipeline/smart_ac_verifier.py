@@ -521,21 +521,144 @@ def _plan_scenario(
     return plan
 
 
-# ── Stub action handlers (implemented in plan 02-02) ──────────────────────────
+# ── Browser state capture (implemented in plan 02-02) ─────────────────────────
 
-def _ax_tree(page: Any) -> str:
-    """Stub: capture accessibility tree. Implemented in plan 02-02."""
-    return "(ax_tree stub — not yet implemented)"
+def _walk(node: dict, lines: list[str], depth: int = 0, max_depth: int = 6) -> None:
+    """Recursively walk an accessibility snapshot, appending readable lines."""
+    if depth > max_depth or len(lines) > 250:
+        return
+    role = node.get("role", "")
+    name = node.get("name", "")
+    _SKIP_ROLES = {"generic", "none", "presentation", "document", "group", "list", "region"}
+    if role and name and role not in _SKIP_ROLES:
+        ln = f"{'  ' * depth}{role}: '{name}'"
+        c = node.get("checked")
+        if c is not None:
+            ln += f" [checked={c}]"
+        v = node.get("value", "")
+        if v and role in ("textbox", "combobox"):
+            ln += f" [value='{v[:30]}']"
+        lines.append(ln)
+    for child in node.get("children", []):
+        _walk(child, lines, depth + 1, max_depth)
+
+
+def _ax_tree(page: Any, max_lines: int = 250) -> str:
+    """Accessibility tree as readable text — captures both Shopify admin and app iframe.
+
+    Dual-frame capture: main page first, then any iframe whose URL contains
+    'shopify', 'pluginhive', or 'apps' (the MCSL app iframe filter).
+    """
+    lines: list[str] = []
+
+    # 1. Main page snapshot (Shopify admin chrome — sidebar, headers)
+    try:
+        ax = page.accessibility.snapshot(interesting_only=True)
+        if ax:
+            _walk(ax, lines)
+    except Exception as e:
+        lines.append(f"(main page snapshot error: {e})")
+
+    # 2. App iframe — all MCSL app UI lives inside iframe[name="app-iframe"]
+    #    Without this, the agent is blind to app buttons, dropdowns, and inputs.
+    try:
+        for frame in page.frames:
+            if frame is page.main_frame:
+                continue
+            frame_url = frame.url or ""
+            # Only capture app-related iframes (skip Shopify analytics/tracking iframes)
+            if not frame_url or (
+                "shopify" not in frame_url
+                and "pluginhive" not in frame_url
+                and "apps" not in frame_url
+            ):
+                continue
+            try:
+                frame_ax = frame.accessibility.snapshot(interesting_only=True)
+                if frame_ax:
+                    lines.append(f"\n--- [APP IFRAME: {frame_url[:60]}] ---")
+                    _walk(frame_ax, lines)
+                    lines.append("--- [END IFRAME] ---")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Truncate to max_lines
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+
+    return "\n".join(lines) or "(no interactive elements)"
+
+
+_NET_JS = """() =>
+    performance.getEntriesByType('resource')
+      .filter(e => ['xmlhttprequest','fetch'].includes(e.initiatorType))
+      .slice(-40).map(e => e.name)
+"""
 
 
 def _screenshot(page: Any) -> str:
-    """Stub: capture base64 PNG screenshot. Implemented in plan 02-02."""
-    return ""
+    """Base64 PNG of current page."""
+    try:
+        raw = page.screenshot(full_page=False, scale="css")
+        return base64.standard_b64encode(raw).decode()
+    except Exception:
+        try:
+            return base64.standard_b64encode(page.screenshot(full_page=False)).decode()
+        except Exception:
+            return ""
 
 
-def _network(page: Any, endpoints: list[str] | None = None) -> list[str]:
-    """Stub: capture filtered network calls. Implemented in plan 02-02."""
-    return []
+def _network(page: Any, patterns: list[str] | None = None) -> str:
+    """Recent API/XHR calls matching any pattern — returns newline-joined string.
+
+    Checks both the main page and app iframe frames so MCSL API calls are captured.
+    Returns empty string if no matching requests found.
+    """
+    all_entries: list[str] = []
+
+    # Main page
+    try:
+        entries = page.evaluate(_NET_JS)
+        all_entries.extend(entries or [])
+    except Exception:
+        pass
+
+    # App iframe frames (same URL filter as _ax_tree)
+    try:
+        for frame in page.frames:
+            if frame is page.main_frame:
+                continue
+            frame_url = frame.url or ""
+            if not frame_url or (
+                "shopify" not in frame_url
+                and "pluginhive" not in frame_url
+                and "apps" not in frame_url
+            ):
+                continue
+            try:
+                entries = frame.evaluate(_NET_JS)
+                all_entries.extend(entries or [])
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Deduplicate
+    seen: set[str] = set()
+    hits: list[str] = []
+    for e in all_entries:
+        if e not in seen:
+            seen.add(e)
+            hits.append(e)
+
+    if patterns:
+        hits = [e for e in hits if any(p in e for p in patterns)]
+    else:
+        hits = [e for e in hits if "/api/" in e or "pluginhive" in e.lower()]
+
+    return "\n".join(hits)
 
 
 def _do_action(page: Any, action: dict, app_base: str = "") -> bool:
