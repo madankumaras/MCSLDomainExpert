@@ -794,6 +794,81 @@ def _do_action(page: Any, action: dict, app_base: str = "") -> bool:
     return True
 
 
+_DECISION_PROMPT = dedent("""\
+    You are verifying this AC scenario in the MCSL Multi-Carrier Shipping Shopify App.
+
+    SCENARIO: {scenario}
+
+    DOMAIN EXPERT INSIGHT (what this feature does + what to look for):
+    {expert_insight}
+
+    MCSL WORKFLOW GUIDE:
+{mcsl_workflow_guide}
+
+    CURRENT PAGE: {url}
+    ACCESSIBILITY TREE (what is visible):
+    {ax_tree}
+
+    NETWORK CALLS SEEN SO FAR:
+    {network_calls}
+
+    STEPS TAKEN SO FAR ({step_num}/{max_steps}):
+    {steps_taken}
+
+    CODE KNOWLEDGE:
+    {code_context}
+
+    Decide your NEXT action. Respond ONLY in JSON — no extra text:
+    {{
+      "action":      "click" | "fill" | "scroll" | "observe" | "navigate" | "verify" | "qa_needed" | "switch_tab" | "close_tab" | "download_zip" | "download_file",
+      "target":      "<exact element name from accessibility tree — required for click/fill>",
+      "selector":    "<CSS/aria selector — alternative to target for click>",
+      "value":       "<text to type (fill)>",
+      "url":         "<named destination or full URL — required for navigate>",
+      "delta_y":     "<pixels to scroll — optional for scroll, default 300>",
+      "label":       "<input label — for fill actions>",
+      "description": "one sentence: what you are doing and why",
+      "verdict":     "pass | fail | partial  — ONLY when action=verify",
+      "finding":     "what you observed      — ONLY when action=verify",
+      "question":    "your question for QA   — ONLY when action=qa_needed"
+    }}
+
+    Available named navigate destinations (use in url field):
+    - "shipping"         → App's order grid (use for label generation flows)
+    - "settings"         → App settings (carrier accounts, global config)
+    - "carriers"         → Same as settings
+    - "appproducts"      → MCSL app products (dry ice, alcohol, battery, dimensions, signature)
+    - "shopifyproducts"  → Shopify product management (create new products)
+    - "orders"           → Shopify admin orders list
+    - "pickup"           → Pickup scheduling
+    - "rates log"        → Storefront checkout rate log
+    - "faq"              → App FAQ
+
+    Rules:
+    - action=verify      → you have clear evidence to give a verdict (pass/fail/partial)
+    - action=qa_needed   → you genuinely cannot locate the feature after careful searching
+    - ONLY reference targets that literally appear in the accessibility tree above
+    - Do NOT use Shopify "More Actions" for MCSL label generation — use App sidebar → Shipping
+    - App content is in iframe[name="app-iframe"] — click targets are INSIDE the app frame
+    - action=observe on first step to capture visible elements before interacting
+    - Do NOT explore unrelated sections of the app
+
+    TWO COMPLETELY DIFFERENT PRODUCT PAGES:
+    - navigate: "appproducts"  →  App Products (FedEx/MCSL settings on existing products)
+      USE FOR: dry ice, alcohol, battery, dimensions, signature, declared value config
+      ⚠️ NO "Add product" button — cannot CREATE products here
+    - navigate: "shopifyproducts"  →  Shopify Products admin
+      USE FOR: create/edit Shopify products (title, price, weight, SKU, variants)
+      ⚠️ This is NOT the MCSL app — no MCSL-specific fields here
+
+    Label generation (MCSL-specific — NOT Shopify More Actions):
+    1. App sidebar → Shipping → All Orders grid (inside iframe)
+    2. Filter by Order Id → click order row
+    3. Click "Generate Label" button
+    4. Wait for "LABEL CREATED" status → click "Mark As Fulfilled"
+""")
+
+
 def _decide_next(
     claude: "ChatAnthropic",
     scenario: str,
@@ -806,8 +881,60 @@ def _decide_next(
     scr: str = "",
     expert_insight: str = "",
 ) -> dict:
-    """Stub: ask Claude what action to take next. Replaced by real Claude invocation in plan 02-03."""
-    return {"action": "qa_needed", "finding": "Not yet implemented"}
+    """Ask Claude what action to take next in the agentic verification loop.
+
+    Sends current page state (AX tree + screenshot + prior steps) to Claude and
+    parses the returned JSON action. Falls back to qa_needed on unparseable response.
+    """
+    steps_text = "\n".join(
+        f"  {i + 1}. [{s.action}] {s.description} ({'OK' if s.success else 'FAIL'})"
+        for i, s in enumerate(steps)
+    )
+    net_text = "\n".join(net_seen[-10:]) if net_seen else "(none)"
+
+    prompt_text = _DECISION_PROMPT.format(
+        scenario=scenario,
+        expert_insight=expert_insight or "(not available)",
+        mcsl_workflow_guide=_MCSL_WORKFLOW_GUIDE,
+        url=url,
+        ax_tree=ax[:3000],
+        network_calls=net_text,
+        steps_taken=steps_text or "(just starting)",
+        code_context=ctx[:3000],
+        step_num=step_num,
+        max_steps=MAX_STEPS,
+    )
+
+    # Build HumanMessage — include base64 screenshot if available
+    content: list[dict] = [{"type": "text", "text": prompt_text}]
+    if scr:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{scr}"},
+        })
+    msg = HumanMessage(content=content)
+
+    try:
+        response = claude.invoke([msg])
+        raw = response.content
+        if not isinstance(raw, str):
+            # Handle list-of-blocks content format
+            raw = " ".join(
+                b.get("text", "") if isinstance(b, dict) else str(b)
+                for b in raw
+            )
+        parsed = _parse_json(raw)
+        if not parsed or "action" not in parsed:
+            logger.warning(
+                "[decide] Could not parse valid action from Claude response — "
+                "falling back to qa_needed.\nRaw: %s", raw[:400]
+            )
+            return {"action": "qa_needed", "question": "Claude returned unparseable response"}
+        logger.debug("[decide] action=%s target=%s", parsed.get("action"), parsed.get("target", ""))
+        return parsed
+    except Exception as e:
+        logger.warning("[decide] Claude invocation failed: %s", e)
+        return {"action": "qa_needed", "question": "Claude returned unparseable response"}
 
 
 def _launch_browser(headless: bool = False):
