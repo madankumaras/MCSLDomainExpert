@@ -162,7 +162,7 @@ def _get_preconditions(
 
     # --- CORRECT MCSL LABEL FLOW ---
     # index 0-3: navigate to Order Summary + Prepare Shipment
-    # index 4: Generate Label (insertion point for HAL/Insurance SideDock steps)
+    # index 4: Generate Label
     # index 5: Wait for LABEL CREATED
     label_flow = [
         "Click 'ORDERS' tab → All Orders grid loads inside iframe",
@@ -238,24 +238,32 @@ def _get_preconditions(
 
         elif "hal" in lower or "hold at location" in lower:
             hal_steps = [
-                "On Order Summary, locate the SideDock panel on the right side",
-                "Click 'Hold at Location' option in the SideDock panel",
-                "In the HAL location search field, type a FedEx location name or zip code",
-                "Select the desired hold location from the search results",
-                "Click Yes or Confirm to apply the Hold at Location setting",
+                "Find the Hold at Location (HAL) setting in the FedEx carrier section",
+                "Enable Hold at Location and enter a valid FedEx facility address or zip code",
+                "Select the hold location from the results",
+                "Click Save → verify success toast (.s-alert-box-inner)",
             ]
-            # Insert SideDock steps between 'Prepare Shipment' (index 3) and 'Generate Label' (index 4)
-            steps = label_flow[:4] + hal_steps + label_flow[4:]
+            cleanup = [
+                "(CLEANUP — after LABEL CREATED) Navigate back to AppProducts",
+                "(CLEANUP) Find the test product and open FedEx carrier settings",
+                "(CLEANUP) Disable Hold at Location",
+                "(CLEANUP) Click Save → verify success toast",
+            ]
+            steps = product_nav + hal_steps + label_flow + cleanup
 
         elif "insurance" in lower:
             insurance_steps = [
-                "On Order Summary, locate the SideDock panel on the right side",
-                "Click the Insurance pencil/edit icon in the SideDock panel",
-                "In the Insurance declared value modal, fill in the package value",
-                "Click Confirm to apply the insurance amount",
+                "Find the Insurance or Declared Value field in the carrier section",
+                "Set the declared value / insurance amount (e.g. $100)",
+                "Click Save → verify success toast (.s-alert-box-inner)",
             ]
-            # Insert SideDock steps between 'Prepare Shipment' (index 3) and 'Generate Label' (index 4)
-            steps = label_flow[:4] + insurance_steps + label_flow[4:]
+            cleanup = [
+                "(CLEANUP — after LABEL CREATED) Navigate back to AppProducts",
+                "(CLEANUP) Find the test product and open carrier settings",
+                "(CLEANUP) Clear the Insurance / Declared Value field",
+                "(CLEANUP) Click Save → verify success toast",
+            ]
+            steps = product_nav + insurance_steps + label_flow + cleanup
 
         else:
             steps = label_flow  # Default FedEx flow (no special service setup)
@@ -277,21 +285,31 @@ def _get_preconditions(
 
         elif "insurance" in lower:
             insurance_steps = [
-                "On Order Summary, locate the SideDock panel on the right side",
-                "Click the Insurance option in SideDock",
-                "Enter declared value in the insurance modal",
-                "Click Confirm",
+                "Find the Insurance or Declared Value field in the carrier section",
+                "Set the declared value / insurance amount (e.g. $100)",
+                "Click Save → verify success toast (.s-alert-box-inner)",
             ]
-            steps = label_flow[:4] + insurance_steps + label_flow[4:]
+            cleanup = [
+                "(CLEANUP — after LABEL CREATED) Navigate back to AppProducts",
+                "(CLEANUP) Find the test product and open carrier settings",
+                "(CLEANUP) Clear the Insurance / Declared Value field",
+                "(CLEANUP) Click Save → verify success toast",
+            ]
+            steps = product_nav + insurance_steps + label_flow + cleanup
 
         elif "cod" in lower or "cash on delivery" in lower:
             cod_steps = [
-                "On Order Summary, locate the SideDock panel on the right side",
-                "Enable COD (Cash on Delivery) option in SideDock",
-                "Enter COD amount and payment method",
-                "Click Confirm",
+                "Find the COD (Cash on Delivery) setting in the UPS carrier section of AppProducts",
+                "Enable COD and enter the COD amount and payment method",
+                "Click Save → verify success toast (.s-alert-box-inner)",
             ]
-            steps = label_flow[:4] + cod_steps + label_flow[4:]
+            cleanup = [
+                "(CLEANUP — after LABEL CREATED) Navigate back to AppProducts",
+                "(CLEANUP) Find the test product and open UPS carrier settings",
+                "(CLEANUP) Disable COD (Cash on Delivery)",
+                "(CLEANUP) Click Save → verify success toast",
+            ]
+            steps = product_nav + cod_steps + label_flow + cleanup
 
         else:
             steps = label_flow
@@ -325,12 +343,17 @@ def _get_preconditions(
     elif carrier_lower == "dhl":
         if "insurance" in lower:
             insurance_steps = [
-                "On Order Summary, locate the SideDock panel on the right side",
-                "Click the Insurance option in SideDock",
-                "Enter declared value for DHL insurance",
-                "Click Confirm",
+                "Find the Insurance or Declared Value field in the carrier section",
+                "Set the declared value / insurance amount (e.g. $100)",
+                "Click Save → verify success toast (.s-alert-box-inner)",
             ]
-            steps = label_flow[:4] + insurance_steps + label_flow[4:]
+            cleanup = [
+                "(CLEANUP — after LABEL CREATED) Navigate back to AppProducts",
+                "(CLEANUP) Find the test product and open carrier settings",
+                "(CLEANUP) Clear the Insurance / Declared Value field",
+                "(CLEANUP) Click Save → verify success toast",
+            ]
+            steps = product_nav + insurance_steps + label_flow + cleanup
 
         elif "signature" in lower:
             toggle_steps = [
