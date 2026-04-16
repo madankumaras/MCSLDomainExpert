@@ -87,7 +87,7 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: source_type='sheets' (not 'test_cases') matches --sources arg name
 - [Phase 01-foundation]: 6 sources: storepepsaas split into storepepsaas_server + storepepsaas_client for independent re-ingest
 - [Phase 01-foundation]: STOREPEPSAAS_SERVER_PATH + STOREPEPSAAS_CLIENT_PATH added to config.py as aliases for per-source ingest
-- [Phase 02-ai-qa-agent-core]: 02-01: MCSL label flow uses app order grid (Shipping → order row → Generate Label), NOT Shopify More Actions
+- [Phase 02-ai-qa-agent-core]: 02-01: MCSL label flow uses ORDERS tab (click 'ORDERS' tab → filter by Order Id → order link → Order Summary → Generate Label), NOT Shopify More Actions
 - [Phase 02-ai-qa-agent-core]: 02-01: App slug mcsl-qa confirmed in _build_url_map (not testing-553)
 - [Phase 02-ai-qa-agent-core]: 02-01: ScenarioResult.carrier field added for carrier-aware reporting downstream
 - [Phase 02-ai-qa-agent-core]: 02-01: venv at MCSLDomainExpert/.venv (parent repo), not worktree — absolute path required for pytest
@@ -100,7 +100,7 @@ Recent decisions affecting current work:
 - [Phase 02-ai-qa-agent-core]: 02-04: _get_carrier_config_steps returns a list for composability; _plan_scenario formats it inline when scenario matches CARRIER-02 keywords
 - [Phase 02-ai-qa-agent-core]: _SPECIAL_SERVICE_KEYWORDS frozenset added alongside _CARRIER_CONFIG_KEYWORDS for precondition detection
 - [Phase 02-ai-qa-agent-core]: preconditions_block appended to _PLAN_PROMPT string rather than adding a new format placeholder — avoids breaking existing prompt structure
-- [Phase 02-ai-qa-agent-core]: HAL and COD/insurance SideDock steps inserted at label_flow[5:] (before Generate Label click) to match live app flow
+- [Phase 02-ai-qa-agent-core]: HAL and insurance use AppProducts hamburger nav (not SideDock — corrected in Phase 03-06); COD uses AppProducts UPS carrier section
 - [Phase 02-ai-qa-agent-core]: DHL international commercial invoice verification appended after full label_flow (post-LABEL CREATED)
 - [Phase 02-ai-qa-agent-core]: MCSL order creator reads SIMPLE_PRODUCTS_JSON from per-carrier .env files, not productsconfig.json
 - [Phase 02-ai-qa-agent-core]: Order ID injected into ctx as 'TEST ORDER ID: {id}' prefix before the agentic step loop so Claude knows which order to navigate to

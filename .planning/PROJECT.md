@@ -76,7 +76,7 @@ The AI QA Agent must be able to autonomously verify any AC scenario for the MCSL
 
 **Navigation:**
 ```
-App URL → click Account Card → filter by Order ID (Add filter → Order Id → paste ID → Escape)
+App URL → click 'ORDERS' tab → filter by Order ID (Add filter → Order Id → paste ID → Escape)
 → wait for order row → click Order ID link → Order Summary page
 ```
 

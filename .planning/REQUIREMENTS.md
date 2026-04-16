@@ -36,16 +36,16 @@
 
 ### AI QA Agent — Label Generation
 
-- [x] **LABEL-01**: Agent handles Manual Label flow (Shopify Orders → order → More Actions → Generate Label → Get Rates → select service → SideDock → Generate)
-- [x] **LABEL-02**: Agent handles Auto-Generate Label flow (More Actions → Auto-Generate Label)
-- [x] **LABEL-03**: Agent handles Bulk Label generation (Orders list → select all → Actions → Generate Labels)
-- [x] **LABEL-04**: Agent handles Return Label flow (Order Summary → Return packages → Generate Return Label)
-- [x] **LABEL-05**: Agent creates test orders via Shopify REST API (single + bulk, reads mcsl-test-automation productsconfig.json + addressconfig.json)
+- [x] **LABEL-01**: Agent handles Manual Label flow (ORDERS tab → filter by Order Id → order link → Order Summary → Generate Label → LABEL CREATED)
+- [x] **LABEL-02**: Agent handles Auto-Generate Label flow (ORDERS tab → select order checkbox → Actions menu → Generate Label → Label Batch page)
+- [x] **LABEL-03**: Agent handles Bulk Label generation (ORDERS tab → filter Unfulfilled → header checkbox → Generate labels → Label Batch page)
+- [x] **LABEL-04**: Agent handles Return Label flow (ORDERS tab → select order → Actions menu → Create Return Label → Submit → Return Created)
+- [x] **LABEL-05**: Agent creates test orders via Shopify REST API (single + bulk, reads SIMPLE_PRODUCTS_JSON/DANGEROUS_PRODUCTS_JSON from carrier-env files)
 
 ### AI QA Agent — Document Verification
 
 - [x] **DOC-01**: Agent verifies label existence via "label generated" badge on Order Summary
-- [x] **DOC-02**: Agent verifies physical docs via More Actions → Download Documents (ZIP → read PDFs/files)
+- [x] **DOC-02**: Agent verifies physical docs via "Download Documents" button on Order Summary (download_zip action → read PDFs/files from ZIP)
 - [x] **DOC-03**: Agent verifies label request XML/JSON fields via Label Summary 3-dots (⋯) → View Log → `.dialogHalfDivParent` dialog → read text content
 - [x] **DOC-04**: Agent verifies visual label codes via Print Documents → switch_tab → screenshot → read codes → close_tab
 - [x] **DOC-05**: Agent views rate logs via ⋯ → View Logs → screenshot dialog (before label generation)
@@ -56,8 +56,8 @@
 - [ ] **PRE-02**: Hardcoded pre-requirements injected for alcohol scenarios (AppProducts → Is Alcohol → type → Save + cleanup)
 - [ ] **PRE-03**: Hardcoded pre-requirements injected for battery scenarios (AppProducts → Is Battery → material/packing → Save + cleanup)
 - [ ] **PRE-04**: Hardcoded pre-requirements for signature scenarios (AppProducts → Signature field → Save + cleanup)
-- [ ] **PRE-05**: Hardcoded pre-requirements for HAL scenarios (SideDock → Hold at Location → modal → select → Yes)
-- [ ] **PRE-06**: Hardcoded pre-requirements for insurance scenarios (SideDock → Insurance → pencil → modal)
+- [x] **PRE-05**: Hardcoded pre-requirements for HAL scenarios (AppProducts hamburger nav → FedEx carrier section → Hold at Location → enable + address → Save + cleanup)
+- [x] **PRE-06**: Hardcoded pre-requirements for insurance scenarios (AppProducts hamburger nav → carrier section → Insurance/Declared Value → set amount → Save + cleanup)
 
 ### Pipeline Dashboard
 
@@ -139,12 +139,12 @@
 | DOC-03 | Phase 3 | Complete |
 | DOC-04 | Phase 3 | Complete |
 | DOC-05 | Phase 3 | Complete |
-| PRE-01 | Phase 3 | Pending |
-| PRE-02 | Phase 3 | Pending |
-| PRE-03 | Phase 3 | Pending |
-| PRE-04 | Phase 3 | Pending |
-| PRE-05 | Phase 3 | Pending |
-| PRE-06 | Phase 3 | Pending |
+| PRE-01 | Phase 3 | Complete |
+| PRE-02 | Phase 3 | Complete |
+| PRE-03 | Phase 3 | Complete |
+| PRE-04 | Phase 3 | Complete |
+| PRE-05 | Phase 3 | Complete |
+| PRE-06 | Phase 3 | Complete |
 | DASH-01 | Phase 4 | Pending |
 | DASH-02 | Phase 4 | Pending |
 | DASH-03 | Phase 4 | Pending |

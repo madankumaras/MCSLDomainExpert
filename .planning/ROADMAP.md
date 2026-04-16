@@ -65,18 +65,18 @@ Plans:
 **Depends on**: Phase 2
 **Requirements**: LABEL-01, LABEL-02, LABEL-03, LABEL-04, LABEL-05, DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, PRE-01, PRE-02, PRE-03, PRE-04, PRE-05, PRE-06
 **Success Criteria** (what must be TRUE):
-  1. The agent generates a label end-to-end via Manual flow (Shopify Orders → Generate Label → Get Rates → SideDock → Generate) and confirms the "label generated" badge appears on Order Summary
+  1. The agent generates a label end-to-end via Manual flow (ORDERS tab → filter by Order Id → order link → Order Summary → Generate Label → LABEL CREATED) and confirms the "label generated" badge appears on Order Summary
   2. The agent generates labels via Auto-Generate, Bulk (Orders list → select all → Actions → Generate Labels), and Return Label flows — each completes without requiring human intervention
-  3. All five document verification strategies produce readable output: badge check (DOC-01), ZIP download read (DOC-02), How To JSON extraction (DOC-03), Print Documents new-tab screenshot with visual label codes (DOC-04), and rate log screenshot (DOC-05)
+  3. All five document verification strategies produce readable output: badge check (DOC-01), ZIP download read (DOC-02), 3-dots → View Log → dialogHalfDivParent XML/JSON (DOC-03), Print Documents new-tab screenshot with visual label codes (DOC-04), and rate log screenshot (DOC-05)
   4. For a dry ice scenario, the agent automatically enables "Is Dry Ice Needed" on AppProducts before generating the label and unchecks it after — without human prompting
   5. Pre-requirements are injected and cleaned up correctly for all six scenario types: dry ice, alcohol, battery, signature, HAL, and insurance
 **Plans**: 6 plans
 
 Plans:
-- [ ] 03-01: Manual label flow — App order grid → Account Card → filter by Order ID → Order Summary → Generate Label → LABEL CREATED
+- [ ] 03-01: Manual label flow — App order grid → ORDERS tab → filter by Order ID → order link → Order Summary → Generate Label → LABEL CREATED
 - [ ] 03-02: Auto-generate and return label flows — LABEL-02, LABEL-04
 - [ ] 03-03: Bulk label generation — LABEL-03 (header checkbox → Generate labels button → Label Batch page)
-- [ ] 03-04: Document verification strategies — DOC-01 badge, DOC-02 Download Documents ZIP, DOC-03 How To JSON, DOC-04 Print Documents new tab, DOC-05 rate log
+- [ ] 03-04: Document verification strategies — DOC-01 badge, DOC-02 Download Documents ZIP, DOC-03 3-dots → View Log → dialogHalfDivParent, DOC-04 Print Documents new tab, DOC-05 rate log
 - [ ] 03-05: download_zip and download_file action handlers — ZIP intercept, unzip, read JSON/CSV/XML/TXT/log; direct file intercept
 - [ ] 03-06: Pre-requirements resolver — _get_preconditions() for dry ice, alcohol, battery, signature, HAL, insurance with cleanup steps
 
