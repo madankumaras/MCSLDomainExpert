@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01 — smart_ac_verifier.py scaffold + Wave 0 test stubs (AGENT-01..03, CARRIER-01)
-last_updated: "2026-04-15T17:20:00.000Z"
+stopped_at: Completed 02-02 — browser loop + state capture (_ax_tree, _screenshot, _network, _verify_scenario, _launch_browser)
+last_updated: "2026-04-16T04:46:37.880Z"
 last_activity: 2026-04-15 — 02-01 agent scaffold + Wave 0 stubs complete
 progress:
   total_phases: 4
@@ -54,6 +54,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 01-foundation P02 | 5 | 2 tasks | 4 files |
 | Phase 01-foundation P03 | 6 | 2 tasks | 9 files |
 | Phase 02-ai-qa-agent-core P01 | 5 | 2 tasks | 2 files |
+| Phase 02-ai-qa-agent-core P02 | 18 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Recent decisions affecting current work:
 - [Phase 02-ai-qa-agent-core]: 02-01: App slug mcsl-qa confirmed in _build_url_map (not testing-553)
 - [Phase 02-ai-qa-agent-core]: 02-01: ScenarioResult.carrier field added for carrier-aware reporting downstream
 - [Phase 02-ai-qa-agent-core]: 02-01: venv at MCSLDomainExpert/.venv (parent repo), not worktree — absolute path required for pytest
+- [Phase 02-ai-qa-agent-core]: 02-02: _network returns str (newline-joined) not list[str] — test contract requires isinstance(net, str)
+- [Phase 02-ai-qa-agent-core]: 02-02: ScenarioResult gains finding + evidence_screenshot fields; VerificationStep fields keyword-only with defaults
 
 ### Pending Todos
 
@@ -91,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-15T17:20:00.000Z
-Stopped at: Completed 02-01 — smart_ac_verifier.py scaffold + Wave 0 test stubs (AGENT-01..03, CARRIER-01)
+Last session: 2026-04-16T04:46:37.878Z
+Stopped at: Completed 02-02 — browser loop + state capture (_ax_tree, _screenshot, _network, _verify_scenario, _launch_browser)
 Resume file: None

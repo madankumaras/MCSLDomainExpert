@@ -20,8 +20,8 @@
 - [x] **AGENT-01**: Agent extracts testable scenarios from AC text as JSON array
 - [x] **AGENT-02**: Agent queries Domain Expert RAG for expected behaviour, API signals, and key checks per scenario
 - [x] **AGENT-03**: Agent generates a JSON execution plan (nav_clicks, look_for, api_to_watch, order_action, carrier)
-- [ ] **AGENT-04**: Agent runs agentic browser loop (up to 15 steps): observe/click/fill/scroll/navigate/switch_tab/close_tab/download_zip/download_file/verify/qa_needed
-- [ ] **AGENT-05**: Agent captures AX tree (depth 6, 250 lines) + screenshot (base64 PNG) + filtered network calls per step
+- [x] **AGENT-04**: Agent runs agentic browser loop (up to 15 steps): observe/click/fill/scroll/navigate/switch_tab/close_tab/download_zip/download_file/verify/qa_needed
+- [x] **AGENT-05**: Agent captures AX tree (depth 6, 250 lines) + screenshot (base64 PNG) + filtered network calls per step
 - [ ] **AGENT-06**: Agent reports pass/fail/partial/qa_needed verdict per scenario with finding text and screenshot evidence
 - [ ] **AGENT-07**: Agent supports stop button (threading-based, stop flag checked at each loop iteration)
 
@@ -119,8 +119,8 @@
 | AGENT-01 | Phase 2 | Complete |
 | AGENT-02 | Phase 2 | Complete |
 | AGENT-03 | Phase 2 | Complete |
-| AGENT-04 | Phase 2 | Pending |
-| AGENT-05 | Phase 2 | Pending |
+| AGENT-04 | Phase 2 | Complete |
+| AGENT-05 | Phase 2 | Complete |
 | AGENT-06 | Phase 2 | Pending |
 | AGENT-07 | Phase 2 | Pending |
 | CARRIER-01 | Phase 2 | Pending |

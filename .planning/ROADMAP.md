@@ -107,6 +107,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/5 | In Progress|  |
-| 2. AI QA Agent Core | 1/7 | In Progress|  |
+| 2. AI QA Agent Core | 2/7 | In Progress|  |
 | 3. Label + Docs + Pre-Requirements | 0/6 | Not started | - |
 | 4. Pipeline Dashboard | 0/5 | Not started | - |
