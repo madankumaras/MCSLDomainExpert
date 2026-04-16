@@ -17,22 +17,22 @@
 
 ### AI QA Agent — Core
 
-- [ ] **AGENT-01**: Agent extracts testable scenarios from AC text as JSON array
-- [ ] **AGENT-02**: Agent queries Domain Expert RAG for expected behaviour, API signals, and key checks per scenario
-- [ ] **AGENT-03**: Agent generates a JSON execution plan (nav_clicks, look_for, api_to_watch, order_action, carrier)
-- [ ] **AGENT-04**: Agent runs agentic browser loop (up to 15 steps): observe/click/fill/scroll/navigate/switch_tab/close_tab/download_zip/download_file/verify/qa_needed
-- [ ] **AGENT-05**: Agent captures AX tree (depth 6, 250 lines) + screenshot (base64 PNG) + filtered network calls per step
-- [ ] **AGENT-06**: Agent reports pass/fail/partial/qa_needed verdict per scenario with finding text and screenshot evidence
-- [ ] **AGENT-07**: Agent supports stop button (threading-based, stop flag checked at each loop iteration)
+- [x] **AGENT-01**: Agent extracts testable scenarios from AC text as JSON array
+- [x] **AGENT-02**: Agent queries Domain Expert RAG for expected behaviour, API signals, and key checks per scenario
+- [x] **AGENT-03**: Agent generates a JSON execution plan (nav_clicks, look_for, api_to_watch, order_action, carrier)
+- [x] **AGENT-04**: Agent runs agentic browser loop (up to 15 steps): observe/click/fill/scroll/navigate/switch_tab/close_tab/download_zip/download_file/verify/qa_needed
+- [x] **AGENT-05**: Agent captures AX tree (depth 6, 250 lines) + screenshot (base64 PNG) + filtered network calls per step
+- [x] **AGENT-06**: Agent reports pass/fail/partial/qa_needed verdict per scenario with finding text and screenshot evidence
+- [x] **AGENT-07**: Agent supports stop button (threading-based, stop flag checked at each loop iteration)
 
 ### AI QA Agent — Multi-Carrier
 
-- [ ] **CARRIER-01**: Agent is carrier-aware — carrier name injected into planning prompt from AC text detection
-- [ ] **CARRIER-02**: Agent handles carrier account configuration flow (App Settings → Carriers → Add/Edit)
-- [ ] **CARRIER-03**: Agent handles FedEx-specific flows (signature, dry ice, alcohol, battery, HAL, insurance)
-- [ ] **CARRIER-04**: Agent handles UPS-specific flows (signature, insurance, COD)
-- [ ] **CARRIER-05**: Agent handles USPS-specific flows (signature, registered mail)
-- [ ] **CARRIER-06**: Agent handles DHL-specific flows (insurance, signature, international)
+- [x] **CARRIER-01**: Agent is carrier-aware — carrier name injected into planning prompt from AC text detection
+- [x] **CARRIER-02**: Agent handles carrier account configuration flow (App Settings → Carriers → Add/Edit)
+- [x] **CARRIER-03**: Agent handles FedEx-specific flows (signature, dry ice, alcohol, battery, HAL, insurance)
+- [x] **CARRIER-04**: Agent handles UPS-specific flows (signature, insurance, COD)
+- [x] **CARRIER-05**: Agent handles USPS-specific flows (signature, registered mail)
+- [x] **CARRIER-06**: Agent handles DHL-specific flows (insurance, signature, international)
 
 ### AI QA Agent — Label Generation
 
@@ -116,19 +116,19 @@
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 1 | Complete |
-| AGENT-01 | Phase 2 | Pending |
-| AGENT-02 | Phase 2 | Pending |
-| AGENT-03 | Phase 2 | Pending |
-| AGENT-04 | Phase 2 | Pending |
-| AGENT-05 | Phase 2 | Pending |
-| AGENT-06 | Phase 2 | Pending |
-| AGENT-07 | Phase 2 | Pending |
-| CARRIER-01 | Phase 2 | Pending |
-| CARRIER-02 | Phase 2 | Pending |
-| CARRIER-03 | Phase 2 | Pending |
-| CARRIER-04 | Phase 2 | Pending |
-| CARRIER-05 | Phase 2 | Pending |
-| CARRIER-06 | Phase 2 | Pending |
+| AGENT-01 | Phase 2 | Complete |
+| AGENT-02 | Phase 2 | Complete |
+| AGENT-03 | Phase 2 | Complete |
+| AGENT-04 | Phase 2 | Complete |
+| AGENT-05 | Phase 2 | Complete |
+| AGENT-06 | Phase 2 | Complete |
+| AGENT-07 | Phase 2 | Complete |
+| CARRIER-01 | Phase 2 | Complete |
+| CARRIER-02 | Phase 2 | Complete |
+| CARRIER-03 | Phase 2 | Complete |
+| CARRIER-04 | Phase 2 | Complete |
+| CARRIER-05 | Phase 2 | Complete |
+| CARRIER-06 | Phase 2 | Complete |
 | LABEL-01 | Phase 3 | Pending |
 | LABEL-02 | Phase 3 | Pending |
 | LABEL-03 | Phase 3 | Pending |
