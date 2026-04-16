@@ -1743,6 +1743,8 @@ def _verify_scenario(
 
         if "_zip_content" in action:
             zip_ctx = _format_zip_for_context(action["_zip_content"])
+        if "_file_content" in action:
+            zip_ctx = _format_file_for_context(action["_file_content"])
 
     else:
         result.status = "partial"
