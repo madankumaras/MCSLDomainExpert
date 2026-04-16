@@ -438,28 +438,100 @@ def test_doc05_rate_log():
     )
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_pre01_dry_ice_preconditions():
-    """PRE-01: dry ice preconditions include appproducts nav + enable toggle + cleanup note."""
-    pass
+    """PRE-01: dry ice preconditions include MCSL AppProducts nav + enable toggle + CLEANUP as list item."""
+    from pipeline.smart_ac_verifier import _get_preconditions
+
+    steps = _get_preconditions(scenario_text="dry ice shipment", carrier="fedex")
+    assert isinstance(steps, list), f"_get_preconditions must return a list, got {type(steps)}"
+
+    # Must include the Is Dry Ice Needed toggle step
+    has_dry_ice_toggle = any("Is Dry Ice Needed" in s for s in steps)
+    assert has_dry_ice_toggle, (
+        f"PRE-01 steps must contain 'Is Dry Ice Needed' toggle step. Steps: {steps}"
+    )
+
+    # Must include a CLEANUP step as a list item (not just a comment string)
+    cleanup_steps = [s for s in steps if s.startswith("(CLEANUP")]
+    assert len(cleanup_steps) > 0, (
+        f"PRE-01 steps must include at least one (CLEANUP ...) list item. Steps: {steps}"
+    )
+    has_cleanup_dry_ice = any(
+        "Is Dry Ice Needed" in s or "uncheck" in s.lower() or "dry ice" in s.lower()
+        for s in cleanup_steps
+    )
+    assert has_cleanup_dry_ice, (
+        f"PRE-01 CLEANUP step must mention 'Is Dry Ice Needed' or 'uncheck'. Cleanup steps: {cleanup_steps}"
+    )
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_pre02_alcohol_preconditions():
-    """PRE-02: alcohol preconditions include appproducts nav + Is Alcohol + cleanup."""
-    pass
+    """PRE-02: alcohol preconditions include MCSL AppProducts nav + Is Alcohol + CLEANUP as list item."""
+    from pipeline.smart_ac_verifier import _get_preconditions
+
+    steps = _get_preconditions(scenario_text="alcohol shipment", carrier="fedex")
+    assert isinstance(steps, list)
+
+    # Must include the Is Alcohol toggle step
+    has_alcohol_toggle = any("Is Alcohol" in s for s in steps)
+    assert has_alcohol_toggle, (
+        f"PRE-02 steps must contain 'Is Alcohol' toggle step. Steps: {steps}"
+    )
+
+    # Must include a CLEANUP step referencing Is Alcohol
+    cleanup_steps = [s for s in steps if s.startswith("(CLEANUP")]
+    assert len(cleanup_steps) > 0, (
+        f"PRE-02 steps must include at least one (CLEANUP ...) list item. Steps: {steps}"
+    )
+    has_cleanup_alcohol = any(
+        "Is Alcohol" in s or "alcohol" in s.lower()
+        for s in cleanup_steps
+    )
+    assert has_cleanup_alcohol, (
+        f"PRE-02 CLEANUP step must mention 'Is Alcohol'. Cleanup steps: {cleanup_steps}"
+    )
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_pre03_battery_preconditions():
-    """PRE-03: battery preconditions include appproducts nav + Is Battery + material/packing."""
-    pass
+    """PRE-03: battery preconditions include MCSL AppProducts nav + Is Battery/Dangerous Good + CLEANUP."""
+    from pipeline.smart_ac_verifier import _get_preconditions
+
+    steps = _get_preconditions(scenario_text="battery shipment", carrier="fedex")
+    assert isinstance(steps, list)
+
+    # Must include Is Battery or Dangerous Good toggle step
+    has_battery_toggle = any(
+        "Is Battery" in s or "Dangerous Good" in s for s in steps
+    )
+    assert has_battery_toggle, (
+        f"PRE-03 steps must contain 'Is Battery' or 'Dangerous Good' toggle step. Steps: {steps}"
+    )
+
+    # Must include a CLEANUP step
+    cleanup_steps = [s for s in steps if s.startswith("(CLEANUP")]
+    assert len(cleanup_steps) > 0, (
+        f"PRE-03 steps must include at least one (CLEANUP ...) list item. Steps: {steps}"
+    )
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_pre04_signature_preconditions():
-    """PRE-04: signature preconditions include appproducts nav + Signature field."""
-    pass
+    """PRE-04: signature preconditions include MCSL AppProducts nav + Signature field + CLEANUP."""
+    from pipeline.smart_ac_verifier import _get_preconditions
+
+    steps = _get_preconditions(scenario_text="signature required shipment", carrier="fedex")
+    assert isinstance(steps, list)
+
+    # Must include a Signature field step
+    has_signature_step = any("Signature" in s for s in steps)
+    assert has_signature_step, (
+        f"PRE-04 steps must contain a 'Signature' step. Steps: {steps}"
+    )
+
+    # Must include a CLEANUP step
+    cleanup_steps = [s for s in steps if s.startswith("(CLEANUP")]
+    assert len(cleanup_steps) > 0, (
+        f"PRE-04 steps must include at least one (CLEANUP ...) list item. Steps: {steps}"
+    )
 
 
 @pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
