@@ -84,6 +84,12 @@ _CARRIER_CONFIG_KEYWORDS = frozenset({
     "carrier setup", "add a carrier", "setup carrier",
 })
 
+_SPECIAL_SERVICE_KEYWORDS = frozenset({
+    "dry ice", "alcohol", "battery", "signature", "hal", "hold at location",
+    "insurance", "cod", "cash on delivery", "registered mail", "registered",
+    "international",
+})
+
 
 def _get_carrier_config_steps(carrier_name: str, action: str = "add") -> list[str]:
     """Returns step descriptions for carrier account configuration (CARRIER-02).
@@ -115,6 +121,174 @@ def _get_carrier_config_steps(carrier_name: str, action: str = "add") -> list[st
             "Click Save",
         ]
     return base_steps
+
+
+def _get_preconditions(carrier_name: str, scenario: str, app_base: str) -> list[str]:
+    """Returns precondition step descriptions for special service scenarios.
+
+    Steps are injected into the plan prompt so Claude knows what to configure
+    before generating the label.
+
+    Each branch returns an ordered list of step strings that reference the MCSL
+    label flow (app order grid, Account Card, Generate Label) — NOT Shopify More
+    Actions or any FedEx-only flow.
+
+    Args:
+        carrier_name: Display name of the carrier (e.g. 'FedEx', 'UPS', 'DHL').
+        scenario:     Scenario text (used for keyword matching).
+        app_base:     Base URL of the MCSL app (e.g. 'https://…/apps/mcsl-qa').
+
+    Returns:
+        List of natural-language step descriptions for the agent to follow.
+    """
+    lower = scenario.lower()
+    carrier_lower = carrier_name.lower()
+    steps: list[str] = []
+
+    # --- SHARED PRODUCT CONFIG STEPS ---
+    # Used for dry ice, alcohol, battery, signature (product-level settings)
+    product_nav = [
+        f"Navigate to App Products ({app_base}/products)",
+        "Find the test product in the products list",
+        "Click the product to open its carrier settings",
+    ]
+
+    label_flow = [
+        "Navigate to the app order grid (shipping tab)",
+        "Click the Account Card to open the order grid",
+        "Add filter: Order Id → paste the test order ID → press Escape",
+        "Wait for the order row to appear, then click the Order ID link",
+        "On Order Summary: if 'Prepare Shipment' button is visible, click it (retry up to 3x)",
+        "Click 'Generate Label' button (exact match, inside app iframe)",
+        "Wait for order status to reach 'LABEL CREATED' (up to 800s)",
+    ]
+
+    cleanup_note = "(CLEANUP: After test, revert the product settings to their original values)"
+
+    # --- FEDEX ---
+    if carrier_lower == "fedex":
+        if "dry ice" in lower:
+            steps = product_nav + [
+                "Enable 'Is Dry Ice Needed' toggle on the product",
+                "Set Dry Ice Weight to a valid value (e.g. 1.0 kg)",
+                "Click Save",
+            ] + label_flow + [cleanup_note]
+
+        elif "alcohol" in lower:
+            steps = product_nav + [
+                "Enable 'Is Alcohol' toggle on the product",
+                "Select alcohol type (e.g. Wine) from the dropdown",
+                "Click Save",
+            ] + label_flow + [cleanup_note]
+
+        elif "battery" in lower:
+            steps = product_nav + [
+                "Enable 'Is Battery' toggle on the product",
+                "Set Battery Material (e.g. Lithium Ion)",
+                "Set Battery Packing (e.g. Packed with equipment)",
+                "Click Save",
+            ] + label_flow + [cleanup_note]
+
+        elif "signature" in lower:
+            steps = product_nav + [
+                "Set Signature field to 'DIRECT' or 'INDIRECT' on the product",
+                "Click Save",
+            ] + label_flow + [cleanup_note]
+
+        elif "hal" in lower or "hold at location" in lower:
+            steps = label_flow[:5] + [
+                "Before clicking Generate Label, open the SideDock",
+                "Click 'Hold at Location' option in SideDock",
+                "Fill in the HAL location modal — select a FedEx location",
+                "Click Yes/Confirm",
+            ] + label_flow[5:] + [cleanup_note]
+
+        elif "insurance" in lower:
+            steps = label_flow[:5] + [
+                "Before clicking Generate Label, open the SideDock",
+                "Click the Insurance pencil icon in SideDock",
+                "Enter the declared insurance value in the modal",
+                "Click Confirm",
+            ] + label_flow[5:] + [cleanup_note]
+
+        else:
+            steps = label_flow  # Default FedEx flow (no special service setup)
+
+    # --- UPS ---
+    elif carrier_lower == "ups":
+        if "signature" in lower:
+            steps = product_nav + [
+                "Set Signature field to 'DELIVERY_CONFIRMATION' or 'SIGNATURE_REQUIRED' on the product",
+                "Click Save",
+            ] + label_flow + [cleanup_note]
+
+        elif "insurance" in lower:
+            steps = label_flow[:5] + [
+                "Open the SideDock before generating label",
+                "Click the Insurance option in SideDock",
+                "Enter declared value in the insurance modal",
+                "Click Confirm",
+            ] + label_flow[5:] + [cleanup_note]
+
+        elif "cod" in lower or "cash on delivery" in lower:
+            steps = label_flow[:5] + [
+                "Open the SideDock before generating label",
+                "Enable COD (Cash on Delivery) option",
+                "Enter COD amount and payment method",
+                "Click Confirm",
+            ] + label_flow[5:] + [cleanup_note]
+
+        else:
+            steps = label_flow
+
+    # --- USPS ---
+    elif carrier_lower in ("usps", "usps stamps"):
+        if "signature" in lower:
+            steps = product_nav + [
+                "Set Signature field on the product to the required USPS signature option",
+                "Click Save",
+            ] + label_flow + [cleanup_note]
+
+        elif "registered" in lower or "registered mail" in lower:
+            steps = label_flow[:5] + [
+                "Ensure the service selected is 'First Class' or 'Priority' with Registered Mail add-on",
+                "Confirm Registered Mail option is visible in the rate/service selection",
+            ] + label_flow[5:] + [cleanup_note]
+
+        else:
+            steps = label_flow
+
+    # --- DHL ---
+    elif carrier_lower == "dhl":
+        if "insurance" in lower:
+            steps = label_flow[:5] + [
+                "Open the SideDock before generating label",
+                "Click the Insurance option in SideDock",
+                "Enter declared value for DHL insurance",
+                "Click Confirm",
+            ] + label_flow[5:] + [cleanup_note]
+
+        elif "signature" in lower:
+            steps = product_nav + [
+                "Set Signature field on the product for DHL",
+                "Click Save",
+            ] + label_flow + [cleanup_note]
+
+        elif "international" in lower:
+            steps = label_flow + [
+                "Verify commercial invoice is generated after LABEL CREATED status",
+                "Check that customs information (HS code, declared value, description) is present",
+                cleanup_note,
+            ]
+
+        else:
+            steps = label_flow
+
+    else:
+        # Unknown carrier — return generic label flow
+        steps = label_flow
+
+    return steps
 
 
 # ── URL map builder ────────────────────────────────────────────────────────────
@@ -599,6 +773,22 @@ def _plan_scenario(
             f"CARRIER ACCOUNT CONFIGURATION STEPS for {carrier_name}:",
         ] + [f"  {i + 1}. {step}" for i, step in enumerate(config_steps)]
 
+    # Detect special service scenarios (CARRIER-03/04/05/06) and inject preconditions
+    app_base = app_url.rstrip("/")
+    is_special_service = any(kw in scenario_lower for kw in _SPECIAL_SERVICE_KEYWORDS)
+    preconditions_block = ""
+    if is_special_service and carrier_name:
+        precondition_steps = _get_preconditions(carrier_name, scenario, app_base)
+        if precondition_steps:
+            formatted = "\n".join(
+                f"  {i + 1}. {step}" for i, step in enumerate(precondition_steps)
+            )
+            preconditions_block = (
+                f"\nPRE-REQUISITE STEPS (must be completed before verification):\n"
+                f"{formatted}\n"
+            )
+            carrier_context_lines += ["", "PRE-REQUISITE STEPS injected — see preconditions_block."]
+
     carrier_context = "\n".join(carrier_context_lines)
 
     prompt = _PLAN_PROMPT.format(
@@ -610,6 +800,8 @@ def _plan_scenario(
         expert_insight=expert_insight or "(not available)",
         code_context=code_ctx[:5000],
     )
+    if preconditions_block:
+        prompt = prompt + preconditions_block
     resp = claude.invoke([HumanMessage(content=prompt)])
     plan = _parse_json(resp.content) or {}
     # Ensure carrier field is always present
