@@ -436,6 +436,16 @@ To verify fulfillment status and tracking number in Shopify:
 4. Wait for label batch status to change from "Processing" → "SUCCESS"
 5. Click "Mark as Fulfilled" in the batch grid
 
+### Actions Menu Label Flow (single order via Actions menu — LABEL-02)
+1. Click "ORDERS" tab → All Orders grid
+2. Add filter: Order Id → type order ID → press Escape
+3. Click header checkbox (getByRole "row" name="#" → locator "label" → first)
+4. Click Actions button (div[class="buttons-row"] > button:nth-child(4))
+5. In the Actions search box, type "Generate Label" → click menuitem "Generate Label"
+   → Label Batch page opens (same as Bulk Labels)
+6. Wait for SUCCESS status in batch grid
+7. Click "Mark as Fulfilled"
+
 ### TWO DIFFERENT PRODUCT PAGES — DO NOT CONFUSE
 
 ❶  navigate: "appproducts"  →  hamburger → Products
