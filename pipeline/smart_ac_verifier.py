@@ -66,12 +66,55 @@ CARRIER_CODES: dict[str, tuple[str, str]] = {
 # ── Carrier detection ──────────────────────────────────────────────────────────
 
 def _detect_carrier(ac_text: str) -> tuple[str, str]:
-    """Return (carrier_name, carrier_code) from AC text. Defaults to ('', '')."""
+    """Return (carrier_name, carrier_code) from AC text. Defaults to ('', '').
+
+    Multi-word keys (e.g. 'canada post') are checked before shorter keys because
+    Python 3.7+ dicts preserve insertion order and CARRIER_CODES is defined with
+    'canada post' before any ambiguous single-word key.
+    """
     lower = ac_text.lower()
     for keyword, (name, code) in CARRIER_CODES.items():
         if keyword in lower:
             return name, code
     return "", ""
+
+
+_CARRIER_CONFIG_KEYWORDS = frozenset({
+    "add carrier", "configure carrier", "carrier account", "set up carrier",
+    "carrier setup", "add a carrier", "setup carrier",
+})
+
+
+def _get_carrier_config_steps(carrier_name: str, action: str = "add") -> list[str]:
+    """Returns step descriptions for carrier account configuration (CARRIER-02).
+
+    Args:
+        carrier_name: Display name of the carrier (e.g. 'FedEx', 'UPS').
+        action:       'add' to add a new carrier account, 'edit' to modify an existing one.
+
+    Returns:
+        List of natural-language step descriptions for the agent to follow.
+    """
+    base_steps = [
+        "Navigate to App Settings (settings/0)",
+        "Click the Carriers tab inside the app iframe",
+    ]
+    if action == "add":
+        base_steps += [
+            "Click Add Carrier button",
+            f"Select {carrier_name} from the carrier type dropdown",
+            f"Fill in the {carrier_name} account credentials",
+            "Click Save to complete the configuration",
+            f"Verify {carrier_name} appears in the carriers list",
+        ]
+    elif action == "edit":
+        base_steps += [
+            f"Find the {carrier_name} row in the carriers list",
+            f"Click the Edit button for {carrier_name}",
+            "Update the credentials as required",
+            "Click Save",
+        ]
+    return base_steps
 
 
 # ── URL map builder ────────────────────────────────────────────────────────────
@@ -152,10 +195,31 @@ Label status locator (inside iframe):
 2. Check header checkbox to select all orders
 3. Click "Generate labels" button → Label Batch page opens
 
-### Carrier Account Configuration
-1. App sidebar → Settings → Carriers tab
-2. Add/Edit carrier account (FedEx, UPS, DHL, USPS, etc.)
-3. Enter API credentials → Save
+## Carrier Account Configuration (CARRIER-02)
+
+Navigation: App → Settings → Carriers tab
+
+To add a new carrier account:
+  1. Navigate to settings: page.goto(f"{app_base}/settings/0", wait_until="domcontentloaded")
+  2. Click the "Carriers" tab (inside app iframe)
+  3. Click "Add Carrier" button
+  4. Select carrier type from dropdown (FedEx, UPS, DHL, USPS, etc.)
+  5. Fill in required credentials:
+     - FedEx: Account Number, API Key, API Secret, Meter Number
+     - UPS: Account Number, Client ID, Client Secret
+     - DHL: Account Number, Site ID, Password
+     - USPS: Account Number (via EasyPost)
+  6. Click "Save" or "Add" button
+  7. Verify carrier appears in the carriers list
+
+To edit an existing carrier:
+  1. Navigate to Settings → Carriers tab
+  2. Find carrier row by carrier name
+  3. Click "Edit" button on that row
+  4. Update fields as needed
+  5. Click "Save"
+
+Carrier codes for reference: FedEx=C2, UPS=C3, DHL=C1, USPS/EasyPost=C22, Canada Post=C4
 
 ### Order Summary page (accessed from app's Shipping grid)
 1. App sidebar → Shipping → click order row
@@ -507,8 +571,36 @@ def _plan_scenario(
     expert_insight: str,
     claude: "ChatAnthropic",
 ) -> dict:
-    """Stage 3: Generate JSON execution plan with carrier injection."""
+    """Stage 3: Generate JSON execution plan with carrier injection.
+
+    Detects carrier from scenario text and injects:
+      - Carrier name + code into the prompt header
+      - Carrier config steps if the scenario involves account setup (CARRIER-02)
+    """
     carrier_name, carrier_code = _detect_carrier(scenario)
+
+    # Build carrier context block
+    carrier_context_lines = [
+        f"CARRIER CONTEXT:",
+        f"  Name: {carrier_name or '(none)'}",
+        f"  Internal Code: {carrier_code or '—'}",
+        "",
+        f"Use {carrier_name}-specific service codes, account configuration, and special service flows."
+        if carrier_name else "If no carrier detected, treat as carrier-agnostic.",
+    ]
+
+    # Detect carrier account config scenarios (CARRIER-02)
+    scenario_lower = scenario.lower()
+    is_carrier_config = any(kw in scenario_lower for kw in _CARRIER_CONFIG_KEYWORDS)
+    if is_carrier_config and carrier_name:
+        config_steps = _get_carrier_config_steps(carrier_name, action="add")
+        carrier_context_lines += [
+            "",
+            f"CARRIER ACCOUNT CONFIGURATION STEPS for {carrier_name}:",
+        ] + [f"  {i + 1}. {step}" for i, step in enumerate(config_steps)]
+
+    carrier_context = "\n".join(carrier_context_lines)
+
     prompt = _PLAN_PROMPT.format(
         scenario=scenario,
         app_url=app_url,
