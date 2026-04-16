@@ -155,10 +155,24 @@ def test_return_label_flow():
     )
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_doc01_badge_check():
-    """DOC-01: Agent verifies label existence via LABEL CREATED status badge."""
-    pass
+    """DOC-01: _MCSL_WORKFLOW_GUIDE documents badge check strategy with LABEL CREATED locators."""
+    from pipeline.smart_ac_verifier import _MCSL_WORKFLOW_GUIDE
+
+    # Guide must contain LABEL CREATED badge check
+    assert "LABEL CREATED" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE must contain 'LABEL CREATED' badge check"
+    )
+
+    # Guide must reference the order-summary-greyBlock status locator or status reference
+    assert "order-summary-greyBlock" in _MCSL_WORKFLOW_GUIDE or "status" in _MCSL_WORKFLOW_GUIDE.lower(), (
+        "_MCSL_WORKFLOW_GUIDE DOC-01 must reference the status span locator or status description"
+    )
+
+    # Guide must mention Label Summary verification step
+    assert "Label Summary" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE DOC-01 must include Label Summary check"
+    )
 
 
 @pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
@@ -179,10 +193,24 @@ def test_doc03_label_request_xml():
     pass
 
 
-@pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
 def test_doc04_print_documents():
-    """DOC-04: Print Documents — switch_tab + screenshot, NOT download_zip."""
-    pass
+    """DOC-04: _MCSL_WORKFLOW_GUIDE documents Print Documents as new-tab strategy (switch_tab, NOT download_zip)."""
+    from pipeline.smart_ac_verifier import _MCSL_WORKFLOW_GUIDE
+
+    # Guide must mention Print Documents
+    assert "Print Documents" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE must mention 'Print Documents' button"
+    )
+
+    # Guide must specify switch_tab action (NOT download_zip)
+    assert "switch_tab" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE DOC-04 must specify 'switch_tab' action for Print Documents"
+    )
+
+    # Guide must explicitly warn NOT to use download_zip for Print Documents
+    assert "NOT" in _MCSL_WORKFLOW_GUIDE and "download_zip" in _MCSL_WORKFLOW_GUIDE, (
+        "_MCSL_WORKFLOW_GUIDE DOC-04 must explicitly warn against using download_zip for Print Documents"
+    )
 
 
 @pytest.mark.skip(reason="Wave 0 stub — activated in later plans")
