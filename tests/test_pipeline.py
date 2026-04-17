@@ -414,7 +414,7 @@ def test_rqa02_generate_ac_returns_markdown():
     fake_response = MagicMock()
     fake_response.content = "### Acceptance Criteria\n- AC1: FedEx signature required"
 
-    with patch("langchain_anthropic.ChatAnthropic") as mock_cls:
+    with patch("pipeline.card_processor.ChatAnthropic") as mock_cls:
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = fake_response
         mock_cls.return_value = mock_llm
@@ -435,7 +435,7 @@ def test_rqa02_generate_tc_prompt_contains_card():
         captured_messages.extend(messages)
         return fake_response
 
-    with patch("langchain_anthropic.ChatAnthropic") as mock_cls:
+    with patch("pipeline.card_processor.ChatAnthropic") as mock_cls:
         mock_llm = MagicMock()
         mock_llm.invoke.side_effect = fake_invoke
         mock_cls.return_value = mock_llm

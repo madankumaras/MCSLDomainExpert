@@ -34,6 +34,9 @@ class TrelloCard:
     url: str = ""
     list_id: str = ""
     member_ids: list[str] = field(default_factory=list)
+    comments: list[str] = field(default_factory=list)
+    attachments: list[dict] = field(default_factory=list)
+    checklists: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -182,3 +185,12 @@ class TrelloClient:
     def update_card_description(self, card_id: str, new_desc: str) -> dict:
         """Update the description of a card."""
         return self._put(f"cards/{card_id}", desc=new_desc)
+
+    def get_card_comments(self, card_id: str) -> list[str]:
+        """Fetch comment text from a card. Returns list of comment strings (newest first)."""
+        actions = self._get(f"cards/{card_id}/actions", filter="commentCard")
+        return [
+            a["data"]["text"]
+            for a in actions
+            if a.get("type") == "commentCard" and "data" in a and "text" in a["data"]
+        ]
