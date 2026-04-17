@@ -280,13 +280,28 @@ manual_ac = st.text_area(
 # ── Run button handler ─────────────────────────────────────────────────────────
 
 if run_clicked and not st.session_state.sav_running:
-    # Prefer manual paste if both are provided; Trello fetch implemented in 04-05
-    ac_input = manual_ac.strip() or trello_url.strip()
+    from pipeline.card_processor import get_ac_text  # lazy import
+
+    card_name = ""
+    ac_input  = manual_ac.strip()
+
+    if trello_url.strip():
+        with st.spinner("Fetching AC from Trello…"):
+            fetched_name, fetched_ac = get_ac_text(trello_url.strip())
+        if fetched_ac:
+            ac_input  = fetched_ac
+            card_name = fetched_name
+        else:
+            st.warning(
+                "Could not fetch AC from Trello (check TRELLO_API_KEY / TRELLO_TOKEN). "
+                "Paste AC text manually below."
+            )
+
     if not ac_input:
         st.warning("Enter a Trello card URL or paste AC text to run.")
     else:
-        # card_name will be enriched by card_processor in 04-05; use URL/text as placeholder
-        card_name = trello_url.strip() or "Manual AC"
+        if not card_name:
+            card_name = trello_url.strip() or "Manual AC"
         start_run(
             ac_text=ac_input,
             card_name=card_name,
