@@ -282,6 +282,17 @@ def render_report(result: dict) -> None:
                     st.caption("(screenshot decode error)")
 
 
+# ── Status badge helper ───────────────────────────────────────────────────────
+
+def _status_badge(label: str, ok: bool, err_hint: str = "") -> str:
+    """Return an HTML status badge string. Rendered via st.markdown(unsafe_allow_html=True)."""
+    if ok:
+        return f'<div class="status-badge status-ok">✅ &nbsp;{label}</div>'
+    else:
+        hint = f" — {err_hint}" if err_hint else ""
+        return f'<div class="status-badge status-err">❌ &nbsp;{label}{hint}</div>'
+
+
 # ── Page config ───────────────────────────────────────────────────────────────
 # MUST be the first Streamlit call
 
@@ -302,6 +313,189 @@ def main() -> None:
     import config  # lazy import — keeps dotenv load inside main() only
 
     _init_state()
+
+    # ── Connection check flags ──────────────────────────────────────────────
+    api_ok    = bool(config.ANTHROPIC_API_KEY)
+    trello_ok = all([
+        os.getenv("TRELLO_API_KEY"),
+        os.getenv("TRELLO_TOKEN"),
+        os.getenv("TRELLO_BOARD_ID"),
+    ])
+    slack_ok  = bool(
+        os.getenv("SLACK_WEBHOOK_URL", "").strip()
+        or (os.getenv("SLACK_BOT_TOKEN", "").strip() and os.getenv("SLACK_CHANNEL", "").strip())
+    )
+    sheets_ok = bool(os.path.exists(config.GOOGLE_CREDENTIALS_PATH))
+    try:
+        import urllib.request as _ur
+        _ur.urlopen(f"{config.OLLAMA_BASE_URL}/api/tags", timeout=2)
+        ollama_ok = True
+    except Exception:  # noqa: BLE001
+        ollama_ok = False
+
+    # ── code_paths_initialized guard ───────────────────────────────────────
+    if "code_paths_initialized" not in st.session_state:
+        if config.MCSL_AUTOMATION_REPO_PATH:
+            st.session_state["automation_code_path"] = config.MCSL_AUTOMATION_REPO_PATH
+        if config.STOREPEPSAAS_SERVER_PATH:
+            st.session_state["be_repo_path"] = config.STOREPEPSAAS_SERVER_PATH
+        if config.STOREPEPSAAS_CLIENT_PATH:
+            st.session_state["fe_repo_path"] = config.STOREPEPSAAS_CLIENT_PATH
+        st.session_state["code_paths_initialized"] = True
+
+    # ── Sidebar ────────────────────────────────────────────────────────────
+    with st.sidebar:
+        st.markdown(
+            '<div class="pipeline-header">'
+            '<h1>🚚 MCSL QA Pipeline</h1>'
+            '<p>AI-powered QA orchestration</p>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        st.divider()
+
+        # ── System Status ─────────────────────────────────────────────────
+        st.subheader("System Status")
+        st.markdown(
+            _status_badge("Claude API",     api_ok,    "Set ANTHROPIC_API_KEY in .env")
+            + _status_badge("Trello",        trello_ok, "Set TRELLO_API_KEY / TOKEN / BOARD_ID")
+            + _status_badge("Slack",         slack_ok,  "Set SLACK_WEBHOOK_URL or BOT_TOKEN+CHANNEL")
+            + _status_badge("Google Sheets", sheets_ok, "Add credentials.json to project root")
+            + _status_badge("Ollama",        ollama_ok, "Start Ollama locally on port 11434"),
+            unsafe_allow_html=True,
+        )
+        st.divider()
+
+        # ── Release Progress ──────────────────────────────────────────────
+        st.subheader("Release Progress")
+        cards    = st.session_state.get("rqa_cards", [])
+        approved = st.session_state.get("rqa_approved", {})
+        tc_store = st.session_state.get("rqa_test_cases", {})
+        current_release = st.session_state.get("rqa_release", "")
+        n_cards    = len(cards)
+        n_approved = sum(1 for c in cards if approved.get(getattr(c, "id", c)))
+        n_tc       = sum(1 for c in cards if getattr(c, "id", c) in tc_store)
+
+        if current_release:
+            st.markdown(f"**Release:** `{current_release}`")
+            st.markdown(
+                f'<div style="display:flex;gap:16px;font-size:0.85em;margin:8px 0;">'
+                f'<span>Cards: <strong>{n_cards}</strong></span>'
+                f'<span>Approved: <strong>{n_approved}</strong></span>'
+                f'<span>TCs: <strong>{n_tc}</strong></span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            if n_cards > 0:
+                st.progress(n_approved / n_cards, text=f"{n_approved}/{n_cards} approved")
+        else:
+            st.caption("Load a release in Release QA to see progress.")
+        st.divider()
+
+        # ── Code Knowledge Base ───────────────────────────────────────────
+        st.subheader("Code Knowledge Base")
+
+        # Automation Code
+        with st.expander("🧪 Automation Code"):
+            auto_path = st.text_input(
+                "Repo path", key="automation_code_path",
+                value=st.session_state.get("automation_code_path", ""),
+                placeholder="/path/to/mcsl-test-automation",
+            )
+            auto_branch_options = []
+            if auto_path:
+                try:
+                    from rag.code_indexer import get_repo_info
+                    info = get_repo_info(auto_path)
+                    auto_branch_options = info.get("branches", [])
+                except Exception:  # noqa: BLE001
+                    pass
+            if auto_branch_options:
+                st.selectbox("Branch", auto_branch_options, key="auto_branch_select")
+            col_sync, col_idx = st.columns(2)
+            with col_sync:
+                if st.button("Pull & Sync", key="auto_sync_btn"):
+                    from rag.code_indexer import sync_from_git
+                    branch = st.session_state.get("auto_branch_select", "main")
+                    with st.spinner("Syncing…"):
+                        sync_from_git(auto_path, "automation", branch)
+                    st.success("Synced.")
+            with col_idx:
+                if st.button("Full Re-index", key="auto_reindex_btn"):
+                    from rag.code_indexer import index_codebase
+                    with st.spinner("Re-indexing…"):
+                        index_codebase(auto_path, "automation", clear_existing=True)
+                    st.success("Re-indexed.")
+
+        # Backend / Server Code
+        with st.expander("🖥️ Backend/Server Code"):
+            be_path = st.text_input(
+                "Repo path", key="be_repo_path",
+                value=st.session_state.get("be_repo_path", ""),
+                placeholder="/path/to/storepepsaas/server",
+            )
+            be_branch_options = []
+            if be_path:
+                try:
+                    from rag.code_indexer import get_repo_info
+                    info = get_repo_info(be_path)
+                    be_branch_options = info.get("branches", [])
+                except Exception:  # noqa: BLE001
+                    pass
+            if be_branch_options:
+                st.selectbox("Branch", be_branch_options, key="be_branch_select")
+            col_sync, col_idx = st.columns(2)
+            with col_sync:
+                if st.button("Pull & Sync", key="be_sync_btn"):
+                    from rag.code_indexer import sync_from_git
+                    branch = st.session_state.get("be_branch_select", "main")
+                    with st.spinner("Syncing…"):
+                        sync_from_git(be_path, "storepepsaas_server", branch)
+                    st.success("Synced.")
+            with col_idx:
+                if st.button("Full Re-index", key="be_reindex_btn"):
+                    from rag.code_indexer import index_codebase
+                    with st.spinner("Re-indexing…"):
+                        index_codebase(be_path, "storepepsaas_server", clear_existing=True)
+                    st.success("Re-indexed.")
+
+        # Frontend / Client Code
+        with st.expander("🌐 Frontend/Client Code"):
+            fe_path = st.text_input(
+                "Repo path", key="fe_repo_path",
+                value=st.session_state.get("fe_repo_path", ""),
+                placeholder="/path/to/storepepsaas/client",
+            )
+            fe_branch_options = []
+            if fe_path:
+                try:
+                    from rag.code_indexer import get_repo_info
+                    info = get_repo_info(fe_path)
+                    fe_branch_options = info.get("branches", [])
+                except Exception:  # noqa: BLE001
+                    pass
+            if fe_branch_options:
+                st.selectbox("Branch", fe_branch_options, key="fe_branch_select")
+            col_sync, col_idx = st.columns(2)
+            with col_sync:
+                if st.button("Pull & Sync", key="fe_sync_btn"):
+                    from rag.code_indexer import sync_from_git
+                    branch = st.session_state.get("fe_branch_select", "main")
+                    with st.spinner("Syncing…"):
+                        sync_from_git(fe_path, "storepepsaas_client", branch)
+                    st.success("Synced.")
+            with col_idx:
+                if st.button("Full Re-index", key="fe_reindex_btn"):
+                    from rag.code_indexer import index_codebase
+                    with st.spinner("Re-indexing…"):
+                        index_codebase(fe_path, "storepepsaas_client", clear_existing=True)
+                    st.success("Re-indexed.")
+
+        st.divider()
+
+        # ── Dry Run toggle ────────────────────────────────────────────────
+        dry_run = st.toggle("🧪 Dry Run (no writes)", key="dry_run", value=False)
+        st.caption("Generates output without writing to Trello, repo, or Sheets.")
 
 
 if __name__ == "__main__" or True:

@@ -212,7 +212,6 @@ def test_ui01_tab_stubs():
         assert tab_var in src, f"Tab variable '{tab_var}' missing"
 
 
-@pytest.mark.skip(reason="Wave 0 — implement in 05-02")
 def test_ui02_status_badges():
     import pipeline_dashboard as pd
     ok_html = pd._status_badge("Claude API", True)
@@ -222,7 +221,6 @@ def test_ui02_status_badges():
     assert "Set TRELLO_" in err_html
 
 
-@pytest.mark.skip(reason="Wave 0 — implement in 05-02")
 def test_ui03_release_progress():
     import pipeline_dashboard as pd
     import inspect
@@ -233,7 +231,6 @@ def test_ui03_release_progress():
     assert "rqa_release" in src
 
 
-@pytest.mark.skip(reason="Wave 0 — implement in 05-02")
 def test_ui04_knowledge_base():
     import pipeline_dashboard as pd
     import inspect
@@ -245,7 +242,6 @@ def test_ui04_knowledge_base():
     assert "FRONTEND_CODE_PATH" not in src
 
 
-@pytest.mark.skip(reason="Wave 0 — implement in 05-03")
 def test_ui07_dry_run_toggle():
     import pipeline_dashboard as pd
     import inspect
