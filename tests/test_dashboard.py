@@ -126,3 +126,41 @@ def test_dash05_report_render():
     assert "fail" in pd.STATUS_BADGE
     assert "partial" in pd.STATUS_BADGE
     assert "qa_needed" in pd.STATUS_BADGE
+
+
+# ---------------------------------------------------------------------------
+# card_processor.py tests (04-05 — not wave-skipped, pure unit tests)
+# ---------------------------------------------------------------------------
+
+def test_card_processor_missing_creds(monkeypatch):
+    monkeypatch.delenv("TRELLO_API_KEY", raising=False)
+    monkeypatch.delenv("TRELLO_TOKEN", raising=False)
+    # Import after env patching
+    import importlib
+    import pipeline.card_processor as cp
+    importlib.reload(cp)   # reload to pick up monkeypatched env
+    name, ac = cp.get_ac_text("https://trello.com/c/abc123/some-card")
+    assert name == ""
+    assert ac == ""
+
+
+def test_card_processor_valid_url():
+    import json
+    import io
+    from unittest.mock import patch, MagicMock
+
+    fake_body = json.dumps({"name": "My Card", "desc": "AC text here"}).encode()
+    mock_resp = MagicMock()
+    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+    mock_resp.__exit__ = MagicMock(return_value=False)
+    mock_resp.read.return_value = fake_body
+
+    with patch("pipeline.card_processor.os.environ.get") as mock_env, \
+         patch("pipeline.card_processor.urllib.request.urlopen", return_value=mock_resp):
+        mock_env.side_effect = lambda k, d="": {"TRELLO_API_KEY": "key123", "TRELLO_TOKEN": "tok456"}.get(k, d)
+        from pipeline import card_processor as cp
+        import importlib; importlib.reload(cp)
+        name, ac = cp.get_ac_text("https://trello.com/c/abc123/some-card")
+
+    assert name == "My Card"
+    assert ac == "AC text here"
