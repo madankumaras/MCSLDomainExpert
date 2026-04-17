@@ -247,3 +247,48 @@ def test_ui07_dry_run_toggle():
     src = inspect.getsource(pd)
     assert "st.toggle" in src
     assert "Dry Run" in src or "dry run" in src.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 User Story tab tests — US-01, US-02, US-03
+# ---------------------------------------------------------------------------
+
+def test_us_tab_generate_calls_writer():
+    """US-01: tab_us source contains generate_user_story import and call."""
+    import inspect
+    import pipeline_dashboard
+    src = inspect.getsource(pipeline_dashboard)
+    assert "generate_user_story" in src, "generate_user_story not found in pipeline_dashboard source"
+
+
+def test_us_tab_refine_calls_refiner():
+    """US-02: tab_us source contains refine_user_story call and us_history state key."""
+    import inspect
+    import pipeline_dashboard
+    src = inspect.getsource(pipeline_dashboard)
+    assert "refine_user_story" in src, "refine_user_story not found in pipeline_dashboard source"
+    assert "us_history" in src, "us_history not found in pipeline_dashboard source"
+
+
+def test_us_tab_push_calls_trello():
+    """US-03: tab_us source contains create_card_in_list and Trello session keys."""
+    import inspect
+    import pipeline_dashboard
+    src = inspect.getsource(pipeline_dashboard)
+    assert "create_card_in_list" in src, "create_card_in_list not found in pipeline_dashboard source"
+    assert "us_card_title" in src, "us_card_title not found in pipeline_dashboard source"
+    assert "us_assign_members" in src, "us_assign_members not found in pipeline_dashboard source"
+
+
+def test_us_tab_history_saved_on_push():
+    """US-03: history helpers are present and callable at module level."""
+    import inspect
+    import pipeline_dashboard
+    src = inspect.getsource(pipeline_dashboard)
+    assert "_save_history" in src, "_save_history not found in pipeline_dashboard source"
+    assert "_load_history" in src, "_load_history not found in pipeline_dashboard source"
+    assert "_HISTORY_FILE" in src, "_HISTORY_FILE not found in pipeline_dashboard source"
+    assert callable(getattr(pipeline_dashboard, "_save_history", None)), \
+        "_save_history is not callable on pipeline_dashboard module"
+    assert callable(getattr(pipeline_dashboard, "_load_history", None)), \
+        "_load_history is not callable on pipeline_dashboard module"
