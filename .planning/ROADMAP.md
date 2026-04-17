@@ -216,7 +216,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. AI QA Agent Core | 7/7 | Complete   | 2026-04-16 |
 | 3. Label + Docs + Pre-Requirements | 5/6 | In Progress|  |
 | 4. Pipeline Dashboard | 5/5 | Complete   | 2026-04-17 |
-| 5. Full Dashboard UI | 0/3 | Not started |  |
+| 5. Full Dashboard UI | 1/3 | In Progress|  |
 | 6. User Story + Move Cards + History | 0/3 | Not started |  |
 | 7. Release QA Pipeline Core | 0/4 | Not started |  |
 | 8. Slack + Sign Off | 0/3 | Not started |  |

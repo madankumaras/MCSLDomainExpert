@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 4 complete — about to plan Phase 5 (Full Dashboard UI, 7-tab Streamlit app)
-last_updated: "2026-04-17"
-last_activity: 2026-04-17 — Phase 5-10 added to ROADMAP.md and REQUIREMENTS.md; Phase 5 planning next
+status: planning
+stopped_at: Completed 05-01-PLAN.md — app shell with MCSL branding, 24-class CSS, 12-key session state; 10 tests pass
+last_updated: "2026-04-17T06:24:00.232Z"
+last_activity: 2026-04-17 — Phase 4 complete; Phase 5-10 roadmap and requirements added
 progress:
   total_phases: 10
-  completed_phases: 2
-  total_plans: 42
-  completed_plans: 21
+  completed_phases: 3
+  total_plans: 26
+  completed_plans: 22
   percent: 50
 ---
 
@@ -70,6 +70,7 @@ Progress: [█████░░░░░] 50% (plans: 21/42)
 | Phase 04-pipeline-dashboard P03 | 8 | 2 tasks | 2 files |
 | Phase 04-pipeline-dashboard P04 | 5 | 2 tasks | 2 files |
 | Phase 04-pipeline-dashboard P05 | 7 | 2 tasks | 3 files |
+| Phase 05-full-dashboard-ui P01 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,8 @@ Recent decisions affecting current work:
 - [Phase 04-pipeline-dashboard]: card_processor uses os.environ.get() so tests can mock via patch after importlib.reload()
 - [Phase 04-pipeline-dashboard]: Lazy import from pipeline.card_processor inside Run handler — avoids cold-import cost on every Streamlit reload
 - [Phase 04-pipeline-dashboard]: fetched_ac truthiness (not card_name) decides whether to use Trello result
+- [Phase 05-full-dashboard-ui]: 05-01: _CSS expanded from 8 to 24 classes using MCSL teal-navy brand colours matching .streamlit/config.toml
+- [Phase 05-full-dashboard-ui]: 05-01: _init_state() extended to 12 keys (4 Phase-4 + 8 Phase-5); sidebar stripped to placeholder — implemented in 05-02/03
 
 ### Pending Todos
 
@@ -146,6 +149,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-17T02:42:33.182Z
-Stopped at: Completed 04-05-PLAN.md — card_processor Trello fetch, Run button wiring, all 7 dashboard tests pass
+Last session: 2026-04-17T06:24:00.229Z
+Stopped at: Completed 05-01-PLAN.md — app shell with MCSL branding, 24-class CSS, 12-key session state; 10 tests pass
 Resume file: None

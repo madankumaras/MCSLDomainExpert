@@ -219,12 +219,12 @@
 | DASH-03 | Phase 4 | Complete |
 | DASH-04 | Phase 4 | Complete |
 | DASH-05 | Phase 4 | Complete |
-| UI-01 | Phase 5 | Pending |
+| UI-01 | Phase 5 | Complete |
 | UI-02 | Phase 5 | Pending |
 | UI-03 | Phase 5 | Pending |
 | UI-04 | Phase 5 | Pending |
-| UI-05 | Phase 5 | Pending |
-| UI-06 | Phase 5 | Pending |
+| UI-05 | Phase 5 | Complete |
+| UI-06 | Phase 5 | Complete |
 | UI-07 | Phase 5 | Pending |
 | US-01 | Phase 6 | Pending |
 | US-02 | Phase 6 | Pending |
