@@ -73,7 +73,6 @@ def test_dash02_threading():
 # DASH-03: Progress callback
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="wave:04-03")
 def test_dash03_progress():
     from unittest.mock import patch
     import pipeline_dashboard as pd
@@ -93,7 +92,6 @@ def test_dash03_progress():
 # DASH-04: Stop button
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="wave:04-04")
 def test_dash04_stop_button():
     import pipeline_dashboard as pd
 
