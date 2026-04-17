@@ -170,7 +170,6 @@ def test_card_processor_valid_url():
 # Phase 5 UI tests — Wave 0 stubs (unskipped progressively by plans 05-01/02/03)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="Wave 0 — implement in 05-01")
 def test_ui05_branding():
     from unittest.mock import patch
     calls = {}
@@ -183,7 +182,6 @@ def test_ui05_branding():
     assert calls.get("layout") == "wide"
 
 
-@pytest.mark.skip(reason="Wave 0 — implement in 05-01")
 def test_ui06_css_classes():
     import pipeline_dashboard as pd
     required = [
@@ -199,7 +197,6 @@ def test_ui06_css_classes():
         assert cls in pd._CSS, f"CSS class '{cls}' missing from _CSS"
 
 
-@pytest.mark.skip(reason="Wave 0 — implement in 05-01")
 def test_ui01_seven_tabs():
     import pipeline_dashboard as pd
     assert hasattr(pd, "_CSS")

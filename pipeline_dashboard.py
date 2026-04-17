@@ -35,6 +35,61 @@ _CSS = """
 /* Header */
 .app-header { color: #00d4aa; font-size: 1.8em; font-weight: 700; letter-spacing: -0.5px; }
 .app-subtitle { color: #8892a0; font-size: 0.95em; margin-top: -8px; }
+
+/* App header — dark teal-navy gradient */
+.pipeline-header {
+    background: linear-gradient(135deg, #0f1723 0%, #1a2d2a 100%);
+    padding: 20px 24px; border-radius: 8px; margin-bottom: 16px;
+}
+.pipeline-header h1 { color: #fff; font-weight: 700; margin: 0; }
+.pipeline-header p  { color: #8892a0; margin: 4px 0 0 0; }
+
+/* Sidebar status badges */
+.status-badge {
+    display: inline-flex; align-items: center; width: 100%;
+    padding: 4px 10px; border-radius: 20px; font-size: 0.82em;
+    font-weight: 500; margin-bottom: 4px;
+}
+.status-ok   { background: #d4edda; color: #155724; }
+.status-warn { background: #fff3cd; color: #856404; }
+.status-err  { background: #f8d7da; color: #721c24; }
+
+/* Pipeline step chips */
+.step-chip {
+    display: inline-block; background: #00d4aa1a; color: #00d4aa;
+    border: 1px solid #00d4aa44; border-radius: 14px;
+    padding: 2px 12px; font-size: 0.82em; font-weight: 600;
+    margin-right: 6px; margin-bottom: 4px;
+}
+
+/* Risk level badges */
+.risk-low    { background: #d4edda; color: #155724; padding: 2px 10px; border-radius: 12px; font-size: 0.82em; }
+.risk-medium { background: #fff3cd; color: #856404; padding: 2px 10px; border-radius: 12px; font-size: 0.82em; }
+.risk-high   { background: #f8d7da; color: #721c24; padding: 2px 10px; border-radius: 12px; font-size: 0.82em; }
+
+/* Card step headers */
+.step-header { display: flex; align-items: center; gap: 10px; margin: 12px 0 6px 0; }
+.step-num    { background: #00d4aa; color: #0f1117; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85em; flex-shrink: 0; }
+.step-title  { font-weight: 600; font-size: 0.95em; }
+
+/* Streamlit overrides */
+[data-testid="metric-container"] { background: #1a1d26; border-radius: 8px; padding: 12px; }
+section[data-testid="stSidebar"] > div { padding-top: 1rem; }
+button[data-baseweb="tab"] { font-weight: 600 !important; }
+[data-testid="stExpander"] { border: 1px solid #2a2d3a; border-radius: 6px; }
+
+/* Pipeline flow bar */
+.pipeline-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 12px 0; }
+.pf-step  { background: #2a2d3a; color: #8892a0; padding: 4px 12px; border-radius: 14px; font-size: 0.8em; font-weight: 500; }
+.pf-step.done   { background: #22c55e22; color: #22c55e; }
+.pf-step.active { background: #00d4aa22; color: #00d4aa; }
+.pf-arrow { color: #4a5568; font-size: 0.9em; }
+
+/* Bug severity badges */
+.sev-p1 { background: #ef4444; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 700; }
+.sev-p2 { background: #f97316; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 700; }
+.sev-p3 { background: #eab308; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 700; }
+.sev-p4 { background: #22c55e; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 700; }
 </style>
 """
 
@@ -58,12 +113,22 @@ STATUS_BADGE_MD: dict[str, str] = {
 # ── Session state ──────────────────────────────────────────────────────────────
 
 def _init_state() -> None:
-    """Initialise all sav_* session state keys. Idempotent."""
+    """Initialise all session state keys. Idempotent."""
     defaults: dict[str, Any] = {
+        # Phase 4 — preserved
         "sav_running": False,
         "sav_stop":    threading.Event(),
         "sav_result":  None,
         "sav_prog":    {"current": 0, "total": 0, "label": ""},
+        # Phase 5 — new
+        "pipeline_runs":          {},
+        "trello_connected":       False,
+        "ac_drafts_loaded":       False,
+        "code_paths_initialized": False,
+        "rqa_cards":              [],
+        "rqa_approved":           {},
+        "rqa_test_cases":         {},
+        "rqa_release":            "",
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -218,133 +283,27 @@ def render_report(result: dict) -> None:
 
 
 # ── Page config ───────────────────────────────────────────────────────────────
+# MUST be the first Streamlit call
 
 st.set_page_config(
-    page_title="MCSL Domain Expert",
-    page_icon="🚀",
+    page_title="MCSL QA Pipeline",
+    page_icon="🚚",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 st.markdown(_CSS, unsafe_allow_html=True)
 
-_init_state()
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# ── Main entry point ──────────────────────────────────────────────────────────
 
-with st.sidebar:
-    st.markdown('<div class="app-header">MCSL</div>', unsafe_allow_html=True)
-    st.markdown('<div class="app-subtitle">Domain Expert</div>', unsafe_allow_html=True)
-    st.divider()
-    st.subheader("Configuration")
-    carrier_filter = st.selectbox(
-        "Carrier",
-        options=["All", "FedEx", "UPS", "USPS", "DHL"],
-        index=0,
-    )
-    headless_mode = st.checkbox("Headless browser", value=True)
-    max_scenarios = st.number_input(
-        "Max scenarios", min_value=1, max_value=50, value=10, step=1
-    )
-    st.divider()
-    st.caption("Streamlit 1.56 · MCSL QA Agent v1.0")
+def main() -> None:
+    """Main app — sidebar + tab scaffold. Implemented fully in plans 05-02 and 05-03."""
+    import os
+    import config  # lazy import — keeps dotenv load inside main() only
 
-# ── Header ─────────────────────────────────────────────────────────────────────
+    _init_state()
 
-st.markdown(
-    '<h1 class="app-header">MCSL Domain Expert</h1>'
-    '<p class="app-subtitle">AI-powered AC verification pipeline</p>',
-    unsafe_allow_html=True,
-)
-st.divider()
 
-# ── Input area ────────────────────────────────────────────────────────────────
-
-col_input, col_run = st.columns([5, 1])
-with col_input:
-    trello_url = st.text_input(
-        "Trello Card URL",
-        placeholder="https://trello.com/c/xxxxxxxx/...",
-        help="Paste the Trello card URL — the dashboard will fetch the AC text automatically.",
-    )
-with col_run:
-    st.write("")   # vertical alignment spacer
-    run_clicked = st.button("Run", type="primary", use_container_width=True)
-
-manual_ac = st.text_area(
-    "Or paste AC text directly",
-    height=120,
-    placeholder="Acceptance criteria text…",
-    help="If Trello credentials are not configured, paste the AC text here.",
-)
-
-# ── Run button handler ─────────────────────────────────────────────────────────
-
-if run_clicked and not st.session_state.sav_running:
-    from pipeline.card_processor import get_ac_text  # lazy import
-
-    card_name = ""
-    ac_input  = manual_ac.strip()
-
-    if trello_url.strip():
-        with st.spinner("Fetching AC from Trello…"):
-            fetched_name, fetched_ac = get_ac_text(trello_url.strip())
-        if fetched_ac:
-            ac_input  = fetched_ac
-            card_name = fetched_name
-        else:
-            st.warning(
-                "Could not fetch AC from Trello (check TRELLO_API_KEY / TRELLO_TOKEN). "
-                "Paste AC text manually below."
-            )
-
-    if not ac_input:
-        st.warning("Enter a Trello card URL or paste AC text to run.")
-    else:
-        if not card_name:
-            card_name = trello_url.strip() or "Manual AC"
-        start_run(
-            ac_text=ac_input,
-            card_name=card_name,
-            n_scenarios=int(max_scenarios),
-            headless=headless_mode,
-            max_scenarios=int(max_scenarios),
-        )
-        st.rerun()
-
-# ── Running state: progress bar + stop button ─────────────────────────────────
-
-if st.session_state.sav_running:
-    prog    = st.session_state.sav_prog
-    current = prog.get("current", 0)
-    total   = max(prog.get("total", 1), 1)   # guard: never divide by zero
-
-    st.progress(
-        current / total,
-        text=prog.get("label", "Running…"),
-    )
-
-    # on_click callback guarantees the event is set BEFORE the next rerun fires
-    st.button(
-        "Stop",
-        key="stop_btn",
-        on_click=lambda: st.session_state.sav_stop.set(),
-        type="secondary",
-    )
-
-    st.info(f"Verifying scenario {current} of {total}…")
-    time.sleep(0.5)
-    st.rerun()   # poll every 500 ms — triggers next script execution
-
-elif (
-    not st.session_state.sav_running
-    and st.session_state.sav_stop.is_set()
-    and st.session_state.sav_result is not None
-):
-    st.warning("Run stopped by user. Partial results shown below.")
-
-# ── Completed state: render report ────────────────────────────────────────────
-
-if not st.session_state.sav_running and st.session_state.sav_result is not None:
-    render_report(st.session_state.sav_result)
-elif not st.session_state.sav_running and st.session_state.sav_result is None:
-    st.info("Enter a Trello card URL or paste AC text above and click **Run** to start verification.")
+if __name__ == "__main__" or True:
+    # Allow module import without running main(); Streamlit runs the module directly.
+    _init_state()
