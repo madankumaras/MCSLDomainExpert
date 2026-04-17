@@ -40,7 +40,6 @@ def _minimal_result():
 # DASH-01: Scaffold
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="wave:04-01")
 def test_dash01_scaffold():
     import pipeline_dashboard as pd
     assert callable(pd._init_state)
