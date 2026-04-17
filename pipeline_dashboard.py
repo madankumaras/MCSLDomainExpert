@@ -11,6 +11,10 @@ from typing import Any
 import json
 from pathlib import Path
 
+# Load .env before any st.* calls so env vars are available on first render
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=True)
+
 import streamlit as st
 
 # ── History persistence helpers ────────────────────────────────────────────────
