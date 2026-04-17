@@ -21,7 +21,8 @@ import streamlit as st
 # ── Pipeline module imports ────────────────────────────────────────────────────
 from pipeline.domain_validator import validate_card, ValidationReport
 from pipeline.release_analyser import analyse_release, CardSummary as RASummary, ReleaseAnalysis
-from pipeline.card_processor import generate_acceptance_criteria, generate_test_cases
+from pipeline.card_processor import generate_acceptance_criteria, generate_test_cases, write_test_cases_to_card
+from pipeline.sheets_writer import append_to_sheet
 from pipeline.smart_ac_verifier import verify_ac
 from pipeline.trello_client import TrelloClient
 
@@ -1170,6 +1171,142 @@ def main() -> None:
                             st.success(f"{_verdict_icon} Agent completed — verdict: {getattr(_rpt, 'verdict', 'N/A')}")
                             with st.expander("📋 Full QA Agent Report", expanded=False):
                                 st.json(_rpt.to_dict() if hasattr(_rpt, "to_dict") else str(_rpt))
+
+                    st.divider()
+
+                    # ── Step 3: Test Case Generation ─────────────────────────
+                    st.markdown("### Step 3: Test Cases")
+
+                    _tc_key  = f"tc_text_{card.id}"
+                    _regen_key = f"force_regen_{card.id}"
+                    _existing_tc_key = f"show_existing_tc_{card.id}"
+                    _existing_tcs_in_store = tc_store.get(card.id, "")
+
+                    # Show AI QA Agent results if available
+                    _sav_rpt = st.session_state.get(f"sav_report_{card.id}")
+                    if _sav_rpt:
+                        with st.expander("🤖 AI QA Agent Results (reference)", expanded=False):
+                            st.json(_sav_rpt.to_dict() if hasattr(_sav_rpt, "to_dict") else str(_sav_rpt))
+
+                    _has_tc = bool(st.session_state.get(_tc_key, "").strip())
+                    _force_regen = st.session_state.get(_regen_key, False)
+
+                    _gen_col, _regen_col = st.columns([3, 1])
+                    with _gen_col:
+                        _gen_tc_clicked = st.button(
+                            "📋 Generate Test Cases",
+                            key=f"gen_tc_{card.id}",
+                            disabled=_has_tc and not _force_regen,
+                        )
+                    with _regen_col:
+                        if _has_tc:
+                            if st.button("🔄 Regenerate", key=f"regen_tc_{card.id}"):
+                                st.session_state[_regen_key] = True
+                                st.session_state[_tc_key] = ""
+                                st.rerun()
+
+                    if _gen_tc_clicked or (_force_regen and not _has_tc):
+                        with st.spinner("Generating test cases…"):
+                            try:
+                                generated_tcs = generate_test_cases(card)
+                                st.session_state[_tc_key] = generated_tcs
+                                tc_store[card.id] = generated_tcs
+                                st.session_state["rqa_test_cases"] = tc_store
+                                st.session_state[_regen_key] = False
+                                st.rerun()
+                            except Exception as _tc_err:
+                                st.error(f"TC generation failed: {_tc_err}")
+
+                    if st.session_state.get(_tc_key, "").strip():
+                        _edited_tc = st.text_area(
+                            "Test Cases (editable)",
+                            value=st.session_state[_tc_key],
+                            height=300,
+                            key=f"tc_editor_{card.id}",
+                        )
+                        # Sync edits back to state
+                        st.session_state[_tc_key] = _edited_tc
+                        tc_store[card.id] = _edited_tc
+                        st.session_state["rqa_test_cases"] = tc_store
+                    elif _existing_tcs_in_store:
+                        st.session_state[_tc_key] = _existing_tcs_in_store
+
+                    st.divider()
+
+                    # ── Step 4: Approval ─────────────────────────────────────
+                    st.markdown("### Step 4: Approve & Save")
+
+                    _tc_markdown = st.session_state.get(_tc_key, "").strip()
+                    _is_approved = approved_store.get(card.id, False)
+
+                    if _is_approved:
+                        st.success("🏆 Approved — Test cases saved to Trello and Google Sheets.")
+                    elif _tc_markdown:
+                        if st.button(
+                            "✅ Approve & Save to Trello + Sheets",
+                            key=f"approve_{card.id}",
+                            type="primary",
+                        ):
+                            with st.spinner("Saving to Trello and Google Sheets…"):
+                                _approve_errors = []
+
+                                # Write to Trello
+                                try:
+                                    write_test_cases_to_card(
+                                        card_id=card.id,
+                                        test_cases=_tc_markdown,
+                                        trello=trello,
+                                        release=st.session_state.get("rqa_release", ""),
+                                        card_name=card.name,
+                                    )
+                                except Exception as _trello_err:
+                                    _approve_errors.append(f"Trello: {_trello_err}")
+
+                                # Write to Google Sheets
+                                _sheet_result = None
+                                try:
+                                    _sheet_result = append_to_sheet(
+                                        card_name=card.name,
+                                        test_cases_markdown=_tc_markdown,
+                                        release=st.session_state.get("rqa_release", ""),
+                                    )
+                                except Exception as _sheet_err:
+                                    _approve_errors.append(f"Sheets: {_sheet_err}")
+
+                                # Mark approved + save history
+                                approved_store[card.id] = True
+                                st.session_state["rqa_approved"] = approved_store
+                                _save_history({
+                                    **_load_history(),
+                                    card.id: {
+                                        "card_name": card.name,
+                                        "card_url": card.url,
+                                        "approved_at": __import__("datetime").datetime.now().isoformat(),
+                                        "release": st.session_state.get("rqa_release", ""),
+                                    },
+                                })
+
+                                # Show results
+                                if _approve_errors:
+                                    for _err in _approve_errors:
+                                        st.warning(f"⚠️ {_err}")
+                                else:
+                                    st.success("✅ Saved to Trello!")
+
+                                if _sheet_result:
+                                    if _sheet_result.get("rows_added"):
+                                        st.success(
+                                            f"📊 Saved {_sheet_result['rows_added']} test case(s) "
+                                            f"to sheet tab **'{_sheet_result['tab']}'**"
+                                        )
+                                    if _sheet_result.get("duplicates"):
+                                        st.warning(
+                                            f"⚠️ {len(_sheet_result['duplicates'])} potential duplicate(s) detected in sheet"
+                                        )
+
+                                st.rerun()
+                    else:
+                        st.info("Generate test cases in Step 3 before approving.")
 
                     # Phase 8: Slack DM / toggle escalation placeholder
                     # Phase 8: Add toggle detection and Slack DM notification here
