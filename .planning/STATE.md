@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 07-02-PLAN.md — release_analyser and sheets_writer implemented; 5 RQA-04/05 tests GREEN
-last_updated: "2026-04-17T17:31:54.942Z"
+stopped_at: Completed 07-01-PLAN.md — domain_validator, trello_client expansion, card_processor expansion; 7 new tests GREEN; 108 total
+last_updated: "2026-04-17T17:33:24.689Z"
 last_activity: 2026-04-17 — Phase 4 complete; Phase 5-10 roadmap and requirements added
 progress:
   total_phases: 10
   completed_phases: 5
   total_plans: 33
-  completed_plans: 28
+  completed_plans: 29
   percent: 50
 ---
 
@@ -76,6 +76,7 @@ Progress: [█████░░░░░] 50% (plans: 21/42)
 | Phase 06-user-story-move-cards-history P02 | 2 | 2 tasks | 2 files |
 | Phase 06-user-story-move-cards-history P03 | 2 | 2 tasks | 2 files |
 | Phase 07-release-qa-pipeline-core P02 | 4 | 2 tasks | 3 files |
+| Phase 07-release-qa-pipeline-core P01 | 5 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -158,6 +159,9 @@ Recent decisions affecting current work:
 - [Phase 07-release-qa-pipeline-core]: sheets_writer defines TestCaseRow locally — parallel plan (07-01/card_processor) runs concurrently so no shared import
 - [Phase 07-release-qa-pipeline-core]: test_rqa04_append_to_sheet_returns_meta patches gspread via patch.dict(sys.modules) since it's imported inside the function body at call time
 - [Phase 07-release-qa-pipeline-core]: test_rqa05_analyse_release_returns_report patches config.ANTHROPIC_API_KEY via patch.object to bypass the empty-key guard in test env
+- [Phase 07-release-qa-pipeline-core]: patch target is pipeline.domain_validator.ChatAnthropic (module binding), not langchain_anthropic.ChatAnthropic — already-loaded module ignores source-level patches
+- [Phase 07-release-qa-pipeline-core]: generate_test_cases() uses card.desc directly for AC source — never calls get_ac_text(card) since that function expects a URL string
+- [Phase 07-release-qa-pipeline-core]: validate_card() never raises — ValidationReport error field populated on all failure paths (no API key, RAG failure, Claude error)
 
 ### Pending Todos
 
@@ -169,6 +173,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-17T17:31:54.939Z
-Stopped at: Completed 07-02-PLAN.md — release_analyser and sheets_writer implemented; 5 RQA-04/05 tests GREEN
+Last session: 2026-04-17T17:33:24.686Z
+Stopped at: Completed 07-01-PLAN.md — domain_validator, trello_client expansion, card_processor expansion; 7 new tests GREEN; 108 total
 Resume file: None

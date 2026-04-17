@@ -231,8 +231,8 @@
 | US-03 | Phase 6 | Complete |
 | MC-01 | Phase 6 | Complete |
 | HIST-01 | Phase 6 | Complete |
-| RQA-01 | Phase 7 | Pending |
-| RQA-02 | Phase 7 | Pending |
+| RQA-01 | Phase 7 | Complete |
+| RQA-02 | Phase 7 | Complete |
 | RQA-03 | Phase 7 | Pending |
 | RQA-04 | Phase 7 | Complete |
 | RQA-05 | Phase 7 | Complete |
