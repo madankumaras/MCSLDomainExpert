@@ -8,7 +8,31 @@ import threading
 import time
 from typing import Any
 
+import json
+from pathlib import Path
+
 import streamlit as st
+
+# ── History persistence helpers ────────────────────────────────────────────────
+
+_HISTORY_FILE = Path(__file__).resolve().parent / "data" / "pipeline_history.json"
+
+
+def _load_history() -> dict:
+    """Load pipeline run history from disk. Returns {} if file absent or corrupt."""
+    if _HISTORY_FILE.exists():
+        try:
+            return json.loads(_HISTORY_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_history(runs: dict) -> None:
+    """Persist pipeline run history to disk."""
+    _HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _HISTORY_FILE.write_text(json.dumps(runs, indent=2, ensure_ascii=False), encoding="utf-8")
+
 
 # ── Custom CSS ─────────────────────────────────────────────────────────────────
 _CSS = """
@@ -129,10 +153,23 @@ def _init_state() -> None:
         "rqa_approved":           {},
         "rqa_test_cases":         {},
         "rqa_release":            "",
+        # Phase 6 — User Story tab
+        "us_request_input":  "",
+        "us_result":         "",
+        "us_history":        [],
+        "us_card_title":     "",
+        "us_list_mode":      "Existing list",
+        "us_existing_list":  "",
+        "us_new_list_name":  "",
+        "us_assign_members": [],
     }
     for key, val in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = val
+
+    # Load history from disk on first initialisation
+    if not st.session_state.get("pipeline_runs"):
+        st.session_state["pipeline_runs"] = _load_history()
 
 
 # ── Progress callback (written to by worker thread — no st.* calls) ────────────
@@ -518,7 +555,158 @@ def main() -> None:
     ])
 
     with tab_us:
-        st.info("User Story generation coming in Phase 6.")
+        st.subheader("📝 User Story Writer")
+        st.caption("Generate User Story + Acceptance Criteria from a plain-English feature description.")
+
+        # ── Generate ──────────────────────────────────────────────────────
+        request_text = st.text_area(
+            "What do you want to build?",
+            key="us_request_input",
+            height=120,
+            placeholder="e.g. Allow merchants to configure UPS SurePost as a shipping option...",
+        )
+
+        if st.button("✨ Generate", key="us_generate_btn", type="primary"):
+            if not request_text.strip():
+                st.warning("Enter a feature description first.")
+            else:
+                with st.spinner("Generating User Story…"):
+                    try:
+                        from pipeline.user_story_writer import generate_user_story
+                        result = generate_user_story(request_text.strip())
+                        st.session_state["us_result"] = result
+                        st.session_state.setdefault("us_history", []).append(result)
+                    except Exception as exc:
+                        st.error(f"Generation failed: {exc}")
+
+        # ── Result display + Refine ───────────────────────────────────────
+        if st.session_state.get("us_result"):
+            st.divider()
+            st.markdown(st.session_state["us_result"])
+
+            st.subheader("🔁 Refine")
+            change_req = st.text_area(
+                "What should change?",
+                key="us_change_input",
+                height=80,
+                placeholder="e.g. Add a scenario for when the carrier account is inactive...",
+            )
+            if st.button("🔁 Refine", key="us_refine_btn"):
+                if not change_req.strip():
+                    st.warning("Describe what to change.")
+                else:
+                    with st.spinner("Refining…"):
+                        try:
+                            from pipeline.user_story_writer import refine_user_story
+                            refined = refine_user_story(
+                                st.session_state["us_result"], change_req.strip()
+                            )
+                            st.session_state["us_result"] = refined
+                            st.session_state.setdefault("us_history", []).append(refined)
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"Refine failed: {exc}")
+
+            # ── Push to Trello ─────────────────────────────────────────────
+            st.divider()
+            st.subheader("📌 Push to Trello")
+
+            col_title, col_mode = st.columns([3, 2])
+            with col_title:
+                st.text_input("Card title", key="us_card_title",
+                              placeholder="Feature: UPS SurePost support")
+            with col_mode:
+                st.radio("List", ["Existing list", "Create new list"],
+                         key="us_list_mode", horizontal=True)
+
+            # Fetch board lists for selectors
+            try:
+                from pipeline.trello_client import TrelloClient
+                _tc = TrelloClient()
+                _all_lists = _tc.get_lists()
+                _list_names = [l.name for l in _all_lists]
+                _list_id_map = {l.name: l.id for l in _all_lists}
+                _members = _tc.get_board_members()
+                _member_names = [m["fullName"] for m in _members]
+                _member_id_map = {m["fullName"]: m["id"] for m in _members}
+            except Exception as exc:
+                st.warning(f"Could not connect to Trello: {exc}")
+                _list_names = []
+                _list_id_map = {}
+                _members = []
+                _member_names = []
+                _member_id_map = {}
+
+            if st.session_state["us_list_mode"] == "Existing list":
+                st.selectbox("Target list", _list_names or ["(no lists found)"],
+                             key="us_existing_list")
+            else:
+                st.text_input("New list name", key="us_new_list_name",
+                              placeholder="Sprint 43 Backlog")
+
+            st.multiselect("Assign members", _member_names, key="us_assign_members")
+
+            if st.button("📌 Create Trello Card", key="us_push_btn", type="primary"):
+                card_title = st.session_state.get("us_card_title", "").strip()
+                if not card_title:
+                    st.warning("Enter a card title.")
+                elif not trello_ok:
+                    st.error("Trello credentials not configured. Set TRELLO_API_KEY, TRELLO_TOKEN, TRELLO_BOARD_ID in .env")
+                else:
+                    with st.spinner("Creating Trello card…"):
+                        try:
+                            from pipeline.trello_client import TrelloClient
+                            tc = TrelloClient()
+
+                            # Resolve list_id
+                            if st.session_state["us_list_mode"] == "Create new list":
+                                new_name = st.session_state.get("us_new_list_name", "").strip()
+                                if not new_name:
+                                    st.warning("Enter a name for the new list.")
+                                    st.stop()
+                                tlist = tc.create_list(new_name)
+                                list_id = tlist.id
+                                list_name = tlist.name
+                            else:
+                                chosen = st.session_state.get("us_existing_list", "")
+                                list_id = _list_id_map.get(chosen, "")
+                                list_name = chosen
+                                if not list_id:
+                                    st.warning(f"List '{chosen}' not found on board.")
+                                    st.stop()
+
+                            # Resolve member IDs
+                            selected_members = st.session_state.get("us_assign_members", [])
+                            member_ids = [_member_id_map[n] for n in selected_members
+                                          if n in _member_id_map]
+
+                            card = tc.create_card_in_list(
+                                list_id=list_id,
+                                name=card_title,
+                                desc=st.session_state["us_result"],
+                                member_ids=member_ids,
+                            )
+
+                            # Save to history
+                            from datetime import datetime
+                            runs = st.session_state.get("pipeline_runs", {})
+                            runs[card.id] = {
+                                "card_name":   card_title,
+                                "approved_at": datetime.now().isoformat(timespec="seconds"),
+                                "card_url":    card.url,
+                                "release":     st.session_state.get("rqa_release", ""),
+                                "test_cases":  "",
+                                "rag_chunks":  0,
+                            }
+                            st.session_state["pipeline_runs"] = runs
+                            if not dry_run:
+                                _save_history(runs)
+
+                            st.success(
+                                f"Card created: [{card_title}]({card.url}) in list **{list_name}**"
+                            )
+                        except Exception as exc:
+                            st.error(f"Failed to create Trello card: {exc}")
 
     with tab_devdone:
         st.info("Move Cards coming in Phase 6.")
