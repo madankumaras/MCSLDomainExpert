@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 06-03-PLAN.md — tab_devdone and tab_history implemented; 24 dashboard tests pass; 96 total
-last_updated: "2026-04-17T11:36:00.968Z"
+stopped_at: Completed 07-02-PLAN.md — release_analyser and sheets_writer implemented; 5 RQA-04/05 tests GREEN
+last_updated: "2026-04-17T17:31:54.942Z"
 last_activity: 2026-04-17 — Phase 4 complete; Phase 5-10 roadmap and requirements added
 progress:
   total_phases: 10
   completed_phases: 5
-  total_plans: 29
-  completed_plans: 27
+  total_plans: 33
+  completed_plans: 28
   percent: 50
 ---
 
@@ -75,6 +75,7 @@ Progress: [█████░░░░░] 50% (plans: 21/42)
 | Phase 05-full-dashboard-ui P03 | 8 | 1 tasks | 2 files |
 | Phase 06-user-story-move-cards-history P02 | 2 | 2 tasks | 2 files |
 | Phase 06-user-story-move-cards-history P03 | 2 | 2 tasks | 2 files |
+| Phase 07-release-qa-pipeline-core P02 | 4 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -153,6 +154,10 @@ Recent decisions affecting current work:
 - [Phase 06-user-story-move-cards-history]: History helpers added at module level so 06-03 History tab can import them directly
 - [Phase 06-user-story-move-cards-history]: move_card_to_list_by_id used exclusively in tab_devdone; name->ID map built from get_lists() prevents stale-name errors
 - [Phase 06-user-story-move-cards-history]: dd_chk_{card.id} per-card widget key prefix scoped to avoid future Phase 7 rqa_chk_ collision
+- [Phase 07-release-qa-pipeline-core]: gspread imported inside append_to_sheet()/check_duplicates() — not at module top — so sheets_writer can be imported without gspread installed
+- [Phase 07-release-qa-pipeline-core]: sheets_writer defines TestCaseRow locally — parallel plan (07-01/card_processor) runs concurrently so no shared import
+- [Phase 07-release-qa-pipeline-core]: test_rqa04_append_to_sheet_returns_meta patches gspread via patch.dict(sys.modules) since it's imported inside the function body at call time
+- [Phase 07-release-qa-pipeline-core]: test_rqa05_analyse_release_returns_report patches config.ANTHROPIC_API_KEY via patch.object to bypass the empty-key guard in test env
 
 ### Pending Todos
 
@@ -164,6 +169,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-17T11:32:44.691Z
-Stopped at: Completed 06-03-PLAN.md — tab_devdone and tab_history implemented; 24 dashboard tests pass; 96 total
+Last session: 2026-04-17T17:31:54.939Z
+Stopped at: Completed 07-02-PLAN.md — release_analyser and sheets_writer implemented; 5 RQA-04/05 tests GREEN
 Resume file: None
