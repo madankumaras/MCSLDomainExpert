@@ -65,7 +65,7 @@
 - [x] **DASH-02**: AI QA Agent runs in background threading.Thread so UI stays responsive during verification
 - [x] **DASH-03**: Progress bar and live status updates shown during AI QA Agent execution
 - [x] **DASH-04**: Stop button functional during AI QA Agent run (stop flag checked per loop iteration)
-- [ ] **DASH-05**: Report displayed in dashboard with per-scenario pass/fail/partial/qa_needed
+- [x] **DASH-05**: Report displayed in dashboard with per-scenario pass/fail/partial/qa_needed
 
 ### Configuration & Infrastructure
 
@@ -149,7 +149,7 @@
 | DASH-02 | Phase 4 | Complete |
 | DASH-03 | Phase 4 | Complete |
 | DASH-04 | Phase 4 | Complete |
-| DASH-05 | Phase 4 | Pending |
+| DASH-05 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 46 total (RAG×7, INFRA×5, AGENT×7, CARRIER×6, LABEL×5, DOC×5, PRE×6, DASH×5)
