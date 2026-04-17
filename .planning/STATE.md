@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 05-03-PLAN.md — pipeline header + 7-tab layout with stubs; 15 tests pass
-last_updated: "2026-04-17T06:41:20.058Z"
+stopped_at: Completed 06-01-PLAN.md — user_story_writer and trello_client GREEN; 84 tests pass
+last_updated: "2026-04-17T11:26:36.958Z"
 last_activity: 2026-04-17 — Phase 4 complete; Phase 5-10 roadmap and requirements added
 progress:
   total_phases: 10
   completed_phases: 4
-  total_plans: 26
-  completed_plans: 24
+  total_plans: 29
+  completed_plans: 25
   percent: 50
 ---
 
@@ -145,6 +145,8 @@ Recent decisions affecting current work:
 - [Phase 05-full-dashboard-ui]: code_paths_initialized guard uses dict-form st.session_state set before widget keys registered — prevents StreamlitAPIException
 - [Phase 05-full-dashboard-ui]: 7-tab layout uses exact variable names tab_us/tab_devdone/tab_release/tab_history/tab_signoff/tab_manual/tab_run required by test_ui01_tab_stubs
 - [Phase 05-full-dashboard-ui]: Pipeline header placed in main() body so it appears above tabs in main content area
+- [Phase 06-user-story-move-cards-history]: move_card_to_list_by_id calls PUT /1/cards/{card_id} directly with idList=list_id — no name lookup, prevents stale-list-name errors
+- [Phase 06-user-story-move-cards-history]: US_WRITER_PROMPT references MCSL multi-carrier (FedEx, UPS, DHL, USPS) — RAG context helpers catch all exceptions and return fallback strings
 
 ### Pending Todos
 
@@ -156,6 +158,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-17T06:38:45.387Z
-Stopped at: Completed 05-03-PLAN.md — pipeline header + 7-tab layout with stubs; 15 tests pass
+Last session: 2026-04-17T11:26:32.849Z
+Stopped at: Completed 06-01-PLAN.md — user_story_writer and trello_client GREEN; 84 tests pass
 Resume file: None
