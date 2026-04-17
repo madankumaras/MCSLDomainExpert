@@ -164,3 +164,94 @@ def test_card_processor_valid_url():
 
     assert name == "My Card"
     assert ac == "AC text here"
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 UI tests — Wave 0 stubs (unskipped progressively by plans 05-01/02/03)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skip(reason="Wave 0 — implement in 05-01")
+def test_ui05_branding():
+    from unittest.mock import patch
+    calls = {}
+    with patch("streamlit.set_page_config", side_effect=lambda **kw: calls.update(kw)):
+        import importlib
+        import pipeline_dashboard
+        importlib.reload(pipeline_dashboard)
+    assert calls.get("page_title") == "MCSL QA Pipeline"
+    assert calls.get("page_icon") == "🚚"
+    assert calls.get("layout") == "wide"
+
+
+@pytest.mark.skip(reason="Wave 0 — implement in 05-01")
+def test_ui06_css_classes():
+    import pipeline_dashboard as pd
+    required = [
+        "pipeline-header", "status-badge", "status-ok", "status-err", "status-warn",
+        "step-chip", "risk-low", "risk-medium", "risk-high",
+        "step-header", "step-num", "step-title",
+        "pf-step", "pf-arrow", "pipeline-flow",
+        "sev-p1", "sev-p2", "sev-p3", "sev-p4",
+        "badge-pass", "badge-fail", "badge-partial", "badge-qa_needed",
+        "scenario-card",
+    ]
+    for cls in required:
+        assert cls in pd._CSS, f"CSS class '{cls}' missing from _CSS"
+
+
+@pytest.mark.skip(reason="Wave 0 — implement in 05-01")
+def test_ui01_seven_tabs():
+    import pipeline_dashboard as pd
+    assert hasattr(pd, "_CSS")
+
+
+@pytest.mark.skip(reason="Wave 0 — implement in 05-03")
+def test_ui01_tab_stubs():
+    import pipeline_dashboard as pd
+    import inspect
+    src = inspect.getsource(pd)
+    for tab_var in ["tab_us", "tab_devdone", "tab_release", "tab_history",
+                    "tab_signoff", "tab_manual", "tab_run"]:
+        assert tab_var in src, f"Tab variable '{tab_var}' missing"
+
+
+@pytest.mark.skip(reason="Wave 0 — implement in 05-02")
+def test_ui02_status_badges():
+    import pipeline_dashboard as pd
+    ok_html = pd._status_badge("Claude API", True)
+    assert "status-ok" in ok_html and "Claude API" in ok_html
+    err_html = pd._status_badge("Trello", False, "Set TRELLO_* in .env")
+    assert "status-err" in err_html
+    assert "Set TRELLO_" in err_html
+
+
+@pytest.mark.skip(reason="Wave 0 — implement in 05-02")
+def test_ui03_release_progress():
+    import pipeline_dashboard as pd
+    import inspect
+    src = inspect.getsource(pd)
+    assert "rqa_cards" in src
+    assert "rqa_approved" in src
+    assert "rqa_test_cases" in src
+    assert "rqa_release" in src
+
+
+@pytest.mark.skip(reason="Wave 0 — implement in 05-02")
+def test_ui04_knowledge_base():
+    import pipeline_dashboard as pd
+    import inspect
+    src = inspect.getsource(pd)
+    assert "storepepsaas_server" in src
+    assert "storepepsaas_client" in src
+    assert "MCSL_AUTOMATION_REPO_PATH" in src
+    assert "BACKEND_CODE_PATH" not in src
+    assert "FRONTEND_CODE_PATH" not in src
+
+
+@pytest.mark.skip(reason="Wave 0 — implement in 05-03")
+def test_ui07_dry_run_toggle():
+    import pipeline_dashboard as pd
+    import inspect
+    src = inspect.getsource(pd)
+    assert "st.toggle" in src
+    assert "Dry Run" in src or "dry run" in src.lower()
