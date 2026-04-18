@@ -480,3 +480,176 @@ def test_rqa04_parse_tc_rows_gwt():
     assert hasattr(result[0], "description")
     desc = result[0].description
     assert "Given" in desc or "When" in desc or "Then" in desc
+
+
+# ---------------------------------------------------------------------------
+# SLACK-01: SlackClient + module helpers (08-01)
+# ---------------------------------------------------------------------------
+
+def test_slack01_send_dm():
+    """send_dm() calls conversations.open then chat.postMessage and returns ts string."""
+    from unittest.mock import MagicMock, patch
+
+    open_resp = MagicMock()
+    open_resp.json.return_value = {"channel": {"id": "DM123"}}
+    open_resp.raise_for_status = MagicMock()
+
+    msg_resp = MagicMock()
+    msg_resp.json.return_value = {"ok": True, "ts": "111.222"}
+    msg_resp.raise_for_status = MagicMock()
+
+    with patch("requests.post", side_effect=[open_resp, msg_resp]) as mock_post:
+        from pipeline.slack_client import SlackClient
+        client = SlackClient(token="xoxb-test", channel="C123", webhook_url="")
+        result = client.send_dm("U456", "Hello dev")
+
+    assert mock_post.call_count == 2
+    first_url = mock_post.call_args_list[0][0][0]
+    assert "conversations.open" in first_url
+    second_url = mock_post.call_args_list[1][0][0]
+    assert "chat.postMessage" in second_url
+
+
+def test_slack01_post_to_channel():
+    """post_to_channel() calls chat.postMessage with the given channel."""
+    from unittest.mock import MagicMock, patch
+
+    msg_resp = MagicMock()
+    msg_resp.json.return_value = {"ok": True, "ts": "222.333"}
+    msg_resp.raise_for_status = MagicMock()
+
+    with patch("requests.post", return_value=msg_resp) as mock_post:
+        from pipeline.slack_client import SlackClient
+        client = SlackClient(token="xoxb-test", channel="C123", webhook_url="")
+        client.post_to_channel("Test message", channel="C999")
+
+    assert mock_post.call_count == 1
+    call_url = mock_post.call_args_list[0][0][0]
+    assert "chat.postMessage" in call_url
+    call_json = mock_post.call_args_list[0][1]["json"]
+    assert call_json["channel"] == "C999"
+
+
+def test_slack01_post_signoff_webhook():
+    """post_signoff() via webhook returns ok=True (webhook returns plain 'ok' text)."""
+    from unittest.mock import MagicMock, patch
+
+    wh_resp = MagicMock()
+    wh_resp.status_code = 200
+    wh_resp.text = "ok"
+    wh_resp.raise_for_status = MagicMock()
+
+    with patch("requests.post", return_value=wh_resp) as mock_post:
+        from pipeline.slack_client import SlackClient
+        client = SlackClient(token="", channel="", webhook_url="https://hooks.slack.com/test")
+        result = client.post_signoff("Sign-off message", channel=None)
+
+    assert mock_post.call_count == 1
+    assert result["ok"] is True
+
+
+def test_slack01_slack_configured_true():
+    """slack_configured() returns True when SLACK_WEBHOOK_URL is set."""
+    with patch.dict(os.environ, {
+        "SLACK_WEBHOOK_URL": "https://hooks.slack.com/x",
+        "SLACK_BOT_TOKEN": "",
+        "SLACK_CHANNEL": "",
+    }):
+        from pipeline.slack_client import slack_configured
+        assert slack_configured() is True
+
+
+def test_slack01_list_channels():
+    """list_slack_channels() returns (channels_list, error, note) with expected shape."""
+    from unittest.mock import MagicMock, patch
+
+    get_resp = MagicMock()
+    get_resp.json.return_value = {
+        "ok": True,
+        "channels": [{"id": "C001", "name": "qa-team"}],
+        "response_metadata": {"next_cursor": ""},
+    }
+    get_resp.raise_for_status = MagicMock()
+
+    with patch("requests.get", return_value=get_resp), \
+         patch.dict(os.environ, {"SLACK_BOT_TOKEN": "xoxb-test", "SLACK_WEBHOOK_URL": "", "SLACK_CHANNEL": ""}):
+        from pipeline.slack_client import list_slack_channels
+        channels, error, note = list_slack_channels()
+
+    assert isinstance(channels, list)
+    assert len(channels) >= 1
+    assert channels[0]["id"] == "C001"
+
+
+# ---------------------------------------------------------------------------
+# SLACK-02: notify_devs_of_bug + get_card_members (08-02)
+# ---------------------------------------------------------------------------
+
+def test_slack02_notify_devs():
+    """notify_devs_of_bug() fetches card members and sends one DM per member."""
+    from unittest.mock import MagicMock
+
+    mock_trello = MagicMock()
+    mock_trello.get_card_members.return_value = [
+        {"id": "U001", "fullName": "Alice", "username": "alice"}
+    ]
+
+    mock_slack = MagicMock()
+    mock_slack.send_dm.return_value = "ts.123"
+
+    from pipeline.bug_reporter import notify_devs_of_bug
+    result = notify_devs_of_bug(
+        "card1",
+        "FedEx Label Bug",
+        "Label not generated",
+        trello_client=mock_trello,
+        slack_client=mock_slack,
+    )
+
+    mock_trello.get_card_members.assert_called_once_with("card1")
+    mock_slack.send_dm.assert_called_once()
+    first_arg = mock_slack.send_dm.call_args[0][0]
+    assert first_arg == "U001"
+    assert result["sent_count"] == 1
+    assert not result.get("error")
+
+
+def test_slack02_notify_devs_no_members():
+    """notify_devs_of_bug() with no card members sends no DMs and returns sent_count=0."""
+    from unittest.mock import MagicMock
+
+    mock_trello = MagicMock()
+    mock_trello.get_card_members.return_value = []
+
+    mock_slack = MagicMock()
+
+    from pipeline.bug_reporter import notify_devs_of_bug
+    result = notify_devs_of_bug(
+        "card1",
+        "Some Bug",
+        "desc",
+        trello_client=mock_trello,
+        slack_client=mock_slack,
+    )
+
+    mock_slack.send_dm.assert_not_called()
+    assert result["sent_count"] == 0
+
+
+def test_slack02_get_card_members():
+    """TrelloClient.get_card_members() calls GET /1/cards/{card_id}/members and returns list of dicts."""
+    from unittest.mock import MagicMock, patch
+
+    fake_members = [{"id": "5e1a2b3c", "fullName": "Dev Person", "username": "devperson"}]
+    mock_response = MagicMock()
+    mock_response.json.return_value = fake_members
+    mock_response.raise_for_status = MagicMock()
+
+    with patch("requests.get", return_value=mock_response):
+        from pipeline.trello_client import TrelloClient
+        client = TrelloClient(api_key="k", token="t", board_id="b")
+        result = client.get_card_members("card123")
+
+    assert isinstance(result, list)
+    assert result[0]["id"] == "5e1a2b3c"
+    assert result[0]["fullName"] == "Dev Person"
