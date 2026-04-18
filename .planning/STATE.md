@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 08-02-PLAN.md — bug_reporter.py + get_card_members; 119 tests GREEN
-last_updated: "2026-04-18T04:22:47.479Z"
+stopped_at: Completed 08-01-PLAN.md — SlackClient + module helpers; 119 tests GREEN
+last_updated: "2026-04-18T04:23:00.213Z"
 last_activity: 2026-04-17 — Phase 4 complete; Phase 5-10 roadmap and requirements added
 progress:
   total_phases: 10
@@ -171,6 +171,9 @@ Recent decisions affecting current work:
 - [Phase 07-release-qa-pipeline-core]: write_test_cases_to_card and append_to_sheet imported at module top — called inside Streamlit button handler, no cold-start cost concern
 - [Phase 07-release-qa-pipeline-core]: Error isolation: Trello write and Sheets write each in separate try/except — partial failure shows warnings but still marks card approved and saves history
 - [Phase 08-slack-sign-off]: notify_devs_of_bug() never raises — returns dict(sent_count, error); BUG_DM_PROMPT uses MCSL Shopify App branding; storepepsaas_server/client RAG source types
+- [Phase 08-slack-sign-off]: SlackClient raises ValueError when both webhook_url and token absent — fail-fast config validation
+- [Phase 08-slack-sign-off]: Webhook returns plain text 'ok' not JSON — _post() returns hardcoded {'ok': True} after webhook call
+- [Phase 08-slack-sign-off]: Module-level post_signoff() is a rich formatter that calls client.post_signoff() — distinct from class method
 
 ### Pending Todos
 
@@ -182,6 +185,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-18T04:21:47.766Z
-Stopped at: Completed 08-02-PLAN.md — bug_reporter.py + get_card_members; 119 tests GREEN
+Last session: 2026-04-18T04:23:00.210Z
+Stopped at: Completed 08-01-PLAN.md — SlackClient + module helpers; 119 tests GREEN
 Resume file: None
