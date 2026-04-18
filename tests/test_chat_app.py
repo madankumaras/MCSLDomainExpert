@@ -16,8 +16,8 @@ def test_chat01_ask_domain_expert():
     mock_result = {"answer": "Use ORDERS tab", "sources": ["kb_article_1"]}
 
     with (
-        patch("rag.chain.build_chain", return_value=mock_chain),
-        patch("rag.chain.ask", return_value=mock_result),
+        patch("ui.chat_app.build_chain", return_value=mock_chain),
+        patch("ui.chat_app.ask", return_value=mock_result),
     ):
         from ui.chat_app import ask_domain_expert  # noqa: PLC0415
 
@@ -29,7 +29,7 @@ def test_chat01_ask_domain_expert():
 
 def test_chat01_empty_rag_returns_fallback():
     """ask_domain_expert() returns fallback dict when build_chain() raises RuntimeError."""
-    with patch("rag.chain.build_chain", side_effect=RuntimeError("no API key")):
+    with patch("ui.chat_app.build_chain", side_effect=RuntimeError("no API key")):
         from ui.chat_app import ask_domain_expert  # noqa: PLC0415
 
         result = ask_domain_expert("any question")

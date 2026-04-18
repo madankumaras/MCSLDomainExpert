@@ -18,6 +18,20 @@ from rag.chain import ask, build_chain, SimpleConversationalChain
 
 logger = logging.getLogger(__name__)
 
+
+def ask_domain_expert(question: str) -> dict:
+    """Stateless one-shot RAG query. Returns {"answer": str, "sources": list[str]}.
+
+    On error (no API key, RAG unavailable), returns fallback answer.
+    Usable in tests without live Streamlit session state.
+    """
+    try:
+        chain = build_chain()
+        return ask(question, chain)
+    except Exception as exc:  # noqa: BLE001
+        return {"answer": f"Domain expert unavailable: {exc}", "sources": []}
+
+
 st.set_page_config(
     page_title="MCSL Domain Expert",
     page_icon="📦",
