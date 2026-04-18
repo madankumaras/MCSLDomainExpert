@@ -237,7 +237,7 @@
 | RQA-04 | Phase 7 | Complete |
 | RQA-05 | Phase 7 | Complete |
 | SLACK-01 | Phase 8 | Pending |
-| SLACK-02 | Phase 8 | Pending |
+| SLACK-02 | Phase 8 | Complete |
 | SIGNOFF-01 | Phase 8 | Pending |
 | SIGNOFF-02 | Phase 8 | Pending |
 | AUTO-01 | Phase 9 | Pending |

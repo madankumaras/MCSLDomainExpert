@@ -219,6 +219,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Full Dashboard UI | 3/3 | Complete   | 2026-04-17 |
 | 6. User Story + Move Cards + History | 2/3 | In Progress|  |
 | 7. Release QA Pipeline Core | 4/4 | Complete   | 2026-04-17 |
-| 8. Slack + Sign Off | 0/3 | Not started |  |
+| 8. Slack + Sign Off | 2/3 | In Progress|  |
 | 9. Automation Writing | 0/3 | Not started |  |
 | 10. Run Automation + Domain Expert Chat | 0/3 | Not started |  |
