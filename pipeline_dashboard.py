@@ -472,12 +472,42 @@ def main() -> None:
         st.divider()
 
         # ── Code Knowledge Base ───────────────────────────────────────────
-        st.subheader("Code Knowledge Base")
+        st.subheader("🗂️ Code Knowledge Base")
+        st.caption("RAG over source code — TCs + automation scripts use real patterns.")
+
+        # Load index stats once for all sections
+        try:
+            from rag.code_indexer import get_index_stats
+            _idx_stats = get_index_stats()
+        except Exception:
+            _idx_stats = {}
+
+        def _sync_badge(cnt, sync):
+            if cnt == 0:
+                return "⬜ Not indexed"
+            commit = sync.get("commit", "")
+            synced = sync.get("synced_at", "")
+            tag = f" · `{commit}`" if commit else ""
+            ts  = f" · {synced}" if synced else ""
+            return f"✅ {cnt} chunks{tag}{ts}"
+
+        _auto_cnt   = _idx_stats.get("automation", 0)
+        _mcsl_cnt   = _idx_stats.get("storepepsaas_server", 0)
+        _auto_sync  = _idx_stats.get("automation_sync", {})
+        _mcsl_sync  = _idx_stats.get("server_sync", {})
+
+        st.markdown(
+            f"<div style='font-size:0.75rem;line-height:1.8'>"
+            f"<b>✍️ Automation:</b> {_sync_badge(_auto_cnt, _auto_sync)}<br>"
+            f"<b>🏪 MCSL App:</b> {_sync_badge(_mcsl_cnt, _mcsl_sync)}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
         # ── Automation Code ───────────────────────────────────────────────
         with st.expander("✍️ Automation Code"):
             auto_path = st.text_input(
-                "Repo path", key="automation_code_path",
+                "Automation repo path", key="automation_code_path",
                 value=st.session_state.get("automation_code_path", ""),
                 placeholder="/path/to/mcsl-test-automation",
             )
@@ -489,12 +519,14 @@ def main() -> None:
                 except Exception:  # noqa: BLE001
                     pass
             auto_branches = auto_info.get("branches", [])
-            auto_current = auto_info.get("current_branch", "")
+            auto_current  = auto_info.get("current_branch", "")
+            auto_commit   = auto_info.get("commit", "")
             if auto_branches:
                 _auto_idx = auto_branches.index(auto_current) if auto_current in auto_branches else 0
-                st.selectbox("Branch", auto_branches, index=_auto_idx, key="auto_branch_select")
+                st.selectbox("Branch to pull", auto_branches, index=_auto_idx, key="auto_branch_select")
+                st.caption(f"Current: `{auto_current}` @ `{auto_commit}`")
             elif auto_path:
-                st.caption(f"Branch: {auto_current or 'unknown'}" if auto_current else "⚠️ Branch info unavailable")
+                st.caption(f"Current: `{auto_current or 'unknown'}` @ `{auto_commit}`" if auto_current else "⚠️ Branch info unavailable")
             col_sync, col_idx = st.columns(2)
             with col_sync:
                 if st.button("Pull & Sync", key="auto_sync_btn"):
@@ -503,12 +535,14 @@ def main() -> None:
                     with st.spinner("Syncing…"):
                         sync_from_git(auto_path, "automation", branch)
                     st.success("Synced.")
+                    st.rerun()
             with col_idx:
                 if st.button("Full Re-index", key="auto_reindex_btn"):
                     from rag.code_indexer import index_codebase
                     with st.spinner("Re-indexing…"):
                         index_codebase(auto_path, "automation", clear_existing=True)
                     st.success("Re-indexed.")
+                    st.rerun()
 
         # ── MCSL App Code (single repo — server + client) ─────────────────
         with st.expander("🏪 MCSL App Code"):
@@ -525,12 +559,14 @@ def main() -> None:
                 except Exception:  # noqa: BLE001
                     pass
             mcsl_branches = mcsl_info.get("branches", [])
-            mcsl_current = mcsl_info.get("current_branch", "")
+            mcsl_current  = mcsl_info.get("current_branch", "")
+            mcsl_commit   = mcsl_info.get("commit", "")
             if mcsl_branches:
                 _mcsl_idx = mcsl_branches.index(mcsl_current) if mcsl_current in mcsl_branches else 0
-                st.selectbox("Branch", mcsl_branches, index=_mcsl_idx, key="mcsl_branch_select")
+                st.selectbox("Branch to pull", mcsl_branches, index=_mcsl_idx, key="mcsl_branch_select")
+                st.caption(f"Current: `{mcsl_current}` @ `{mcsl_commit}`")
             elif mcsl_code_path:
-                st.caption(f"Branch: {mcsl_current or 'unknown'}" if mcsl_current else "⚠️ Branch info unavailable")
+                st.caption(f"Current: `{mcsl_current or 'unknown'}` @ `{mcsl_commit}`" if mcsl_current else "⚠️ Branch info unavailable")
             col_sync, col_idx = st.columns(2)
             with col_sync:
                 if st.button("Pull & Sync", key="mcsl_sync_btn"):
@@ -539,12 +575,14 @@ def main() -> None:
                     with st.spinner("Syncing…"):
                         sync_from_git(mcsl_code_path, "storepepsaas_server", branch)
                     st.success("Synced.")
+                    st.rerun()
             with col_idx:
                 if st.button("Full Re-index", key="mcsl_reindex_btn"):
                     from rag.code_indexer import index_codebase
                     with st.spinner("Re-indexing…"):
                         index_codebase(mcsl_code_path, "storepepsaas_server", clear_existing=True)
                     st.success("Re-indexed.")
+                    st.rerun()
 
         # ── MCSL Wiki (documents) ─────────────────────────────────────────
         with st.expander("📖 MCSL Wiki"):
@@ -574,6 +612,7 @@ def main() -> None:
                             _vs = get_vectorstore()
                             _vs.add_documents(_docs)
                             st.success(f"✅ Indexed {len(_docs)} wiki chunks.")
+                            st.rerun()
                         else:
                             st.warning("No wiki documents found.")
                         if _orig_wiki:
