@@ -298,8 +298,14 @@ def get_index_stats() -> dict:
     Return counts of indexed chunks per source_type plus last-sync state.
     Returns {"storepepsaas_server": N, "storepepsaas_client": M, "automation": K,
              "total": N+M+K, "error": ""}
+
+    Uses a fresh PersistentClient (not the cached Chroma wrapper) to guarantee
+    up-to-date counts after index_codebase() or sync_from_git() completes.
+    The cached wrapper is reset first so both share a consistent view.
     """
     try:
+        # Reset the cached wrapper so subsequent searches also see fresh data
+        _reset_code_vectorstore()
         client = chromadb.PersistentClient(path=config.CHROMA_PATH)
         try:
             col = client.get_collection(config.CHROMA_CODE_COLLECTION)

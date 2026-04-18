@@ -177,7 +177,15 @@ def write_automation(
             max_tokens=4096,
         )
         response = llm.invoke([HumanMessage(content=[{"type": "text", "text": prompt}])])
-        response_text: str = response.content
+        _raw = response.content
+        if not isinstance(_raw, str):
+            # langchain_anthropic may return a list of content blocks
+            _raw = " ".join(
+                block["text"] if isinstance(block, dict) else str(block)
+                for block in _raw
+                if not isinstance(block, dict) or block.get("type") == "text"
+            )
+        response_text: str = _raw
 
         pom_code, spec_code = _parse_automation_response(response_text)
 

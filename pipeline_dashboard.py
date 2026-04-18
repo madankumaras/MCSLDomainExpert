@@ -616,12 +616,9 @@ def main() -> None:
             if st.button("Re-index Wiki", key="wiki_reindex_btn", disabled=not wiki_path):
                 with st.spinner("Indexing wiki docs…"):
                     try:
-                        import os as _os
-                        _orig_wiki = _os.environ.get("WIKI_PATH", "")
-                        _os.environ["WIKI_PATH"] = wiki_path
                         from ingest.wiki_loader import load_wiki_docs
                         from rag.vectorstore import get_vectorstore
-                        _docs = load_wiki_docs()
+                        _docs = load_wiki_docs(wiki_path=wiki_path)
                         if _docs:
                             _vs = get_vectorstore()
                             _vs.add_documents(_docs)
@@ -629,8 +626,6 @@ def main() -> None:
                             st.rerun()
                         else:
                             st.warning("No wiki documents found.")
-                        if _orig_wiki:
-                            _os.environ["WIKI_PATH"] = _orig_wiki
                     except Exception as _wiki_err:
                         st.error(f"Wiki index failed: {_wiki_err}")
 
@@ -1217,7 +1212,7 @@ def main() -> None:
                                     app_url=_url,
                                     ac_text=_ac,
                                     stop_flag=lambda: _event.is_set() or st.session_state.get(_sk, False),
-                                    progress_callback=_prog_cb,
+                                    progress_cb=_prog_cb,
                                     max_scenarios=_max,
                                 )
                                 st.session_state[_repk] = report
@@ -1820,10 +1815,12 @@ def main() -> None:
                                 # Write files first
                                 if _pom_abs and _auto_result.pom_code:
                                     os.makedirs(os.path.dirname(_pom_abs), exist_ok=True)
-                                    open(_pom_abs, "w").write(_auto_result.pom_code)
+                                    with open(_pom_abs, "w", encoding="utf-8") as _f:
+                                        _f.write(_auto_result.pom_code)
                                 if _spec_abs and _auto_result.spec_code:
                                     os.makedirs(os.path.dirname(_spec_abs), exist_ok=True)
-                                    open(_spec_abs, "w").write(_auto_result.spec_code)
+                                    with open(_spec_abs, "w", encoding="utf-8") as _f:
+                                        _f.write(_auto_result.spec_code)
                                 _files = [f for f in [_auto_result.pom_path, _auto_result.spec_path] if f]
                                 _pushed, _msg = push_to_branch(_repo_path, _auto_feature.strip(), _files)
                                 if _pushed:
@@ -1958,7 +1955,5 @@ def main() -> None:
                             st.error(f"Slack post failed: {_slack_err}")
 
 
-if __name__ == "__main__" or True:
-    # Allow module import without running main(); Streamlit runs the module directly.
-    _init_state()
-    main()
+_init_state()
+main()

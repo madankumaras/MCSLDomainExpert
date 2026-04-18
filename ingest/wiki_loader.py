@@ -52,15 +52,18 @@ def _category_from_path(file_path: Path, wiki_root: Path) -> str:
         return "wiki"
 
 
-def load_wiki_docs() -> list[Document]:
+def load_wiki_docs(wiki_path: str | None = None) -> list[Document]:
     """
     Walk the MCSL wiki directory, read every Markdown/text file, chunk the content,
     and return LangChain Documents tagged with source_type="wiki".
 
+    Args:
+        wiki_path: Override the wiki directory path. Falls back to config.WIKI_PATH.
+
     Returns an empty list (with a warning) if the wiki directory doesn't exist.
     Skips files with fewer than 50 characters of content.
     """
-    wiki_root = Path(config.WIKI_PATH)
+    wiki_root = Path(wiki_path) if wiki_path else Path(config.WIKI_PATH)
     if not wiki_root.exists():
         logger.warning(
             "Wiki path does not exist: %s — skipping wiki ingestion. "

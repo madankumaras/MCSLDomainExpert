@@ -49,7 +49,7 @@ _ANTI_BOT_ARGS = [
     "--disable-setuid-sandbox",
 ]
 
-_AUTH_JSON = Path("/Users/madan/Documents/mcsl-test-automation/auth.json")
+_AUTH_JSON = Path(config.MCSL_AUTOMATION_REPO_PATH) / "auth.json" if getattr(config, "MCSL_AUTOMATION_REPO_PATH", "") else Path(__file__).parent.parent / "auth.json"
 
 # Carrier keyword → (display name, internal code)
 CARRIER_CODES: dict[str, tuple[str, str]] = {
