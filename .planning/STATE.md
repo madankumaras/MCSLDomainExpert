@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 08-01-PLAN.md — SlackClient + module helpers; 119 tests GREEN
-last_updated: "2026-04-18T04:23:00.213Z"
+stopped_at: Completed 08-03-PLAN.md — Sign Off tab UI + Phase 8 bug-DM wiring; 122 tests GREEN
+last_updated: "2026-04-18T04:53:01.970Z"
 last_activity: 2026-04-17 — Phase 4 complete; Phase 5-10 roadmap and requirements added
 progress:
   total_phases: 10
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 32
-  completed_plans: 35
+  completed_plans: 36
   percent: 50
 ---
 
@@ -81,6 +81,7 @@ Progress: [█████░░░░░] 50% (plans: 21/42)
 | Phase 07-release-qa-pipeline-core P04 | 7 | 1 tasks | 1 files |
 | Phase 08-slack-sign-off P02 | 11 | 2 tasks | 3 files |
 | Phase 08-slack-sign-off P01 | 12 | 2 tasks | 2 files |
+| Phase 08-slack-sign-off P03 | 14 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -174,6 +175,9 @@ Recent decisions affecting current work:
 - [Phase 08-slack-sign-off]: SlackClient raises ValueError when both webhook_url and token absent — fail-fast config validation
 - [Phase 08-slack-sign-off]: Webhook returns plain text 'ok' not JSON — _post() returns hardcoded {'ok': True} after webhook call
 - [Phase 08-slack-sign-off]: Module-level post_signoff() is a rich formatter that calls client.post_signoff() — distinct from class method
+- [Phase 08-slack-sign-off]: tab_signoff TrelloClient wrapped in try/except with if trello: guards — prevents crash when TRELLO_* env vars absent
+- [Phase 08-slack-sign-off]: Source-inspection tests (inspect.getsource) used for signoff compose/send assertions — avoids complex Streamlit mock setup
+- [Phase 08-slack-sign-off]: logging.getLogger added to pipeline_dashboard.py — plan used logger.warning but dashboard had no logger defined
 
 ### Pending Todos
 
@@ -185,6 +189,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-18T04:23:00.210Z
-Stopped at: Completed 08-01-PLAN.md — SlackClient + module helpers; 119 tests GREEN
+Last session: 2026-04-18T04:53:01.966Z
+Stopped at: Completed 08-03-PLAN.md — Sign Off tab UI + Phase 8 bug-DM wiring; 122 tests GREEN
 Resume file: None
