@@ -4,9 +4,12 @@ Entry point: streamlit run pipeline_dashboard.py
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import json
 from pathlib import Path
@@ -25,6 +28,8 @@ from pipeline.card_processor import generate_acceptance_criteria, generate_test_
 from pipeline.sheets_writer import append_to_sheet
 from pipeline.smart_ac_verifier import verify_ac
 from pipeline.trello_client import TrelloClient
+from pipeline.slack_client import post_signoff as slack_post_signoff, slack_configured, dm_token_configured
+from pipeline.bug_reporter import notify_devs_of_bug
 
 # ── History persistence helpers ────────────────────────────────────────────────
 
@@ -186,6 +191,9 @@ def _init_state() -> None:
         "rqa_board_id":    "",
         "rqa_board_name":  "",
         "release_analysis": None,
+        # Phase 8 — Sign Off tab
+        "signoff_message": "",
+        "signoff_sent":    False,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -1308,8 +1316,30 @@ def main() -> None:
                     else:
                         st.info("Generate test cases in Step 3 before approving.")
 
-                    # Phase 8: Slack DM / toggle escalation placeholder
-                    # Phase 8: Add toggle detection and Slack DM notification here
+                    # Phase 8: Auto-DM developers on failed verdict
+                    _result_done = st.session_state.get(f"sav_result_{card.id}", {})
+                    _rpt_done = st.session_state.get(f"sav_report_{card.id}")
+                    if (
+                        _result_done.get("done")
+                        and _rpt_done is not None
+                        and getattr(_rpt_done, "verdict", "").lower() == "fail"
+                        and slack_configured()
+                        and not st.session_state.get(f"bug_dm_sent_{card.id}", False)
+                    ):
+                        try:
+                            _bug_desc = "; ".join(getattr(_rpt_done, "errors", []) or ["Verdict: fail"])
+                            _dm_result = notify_devs_of_bug(
+                                card_id=card.id,
+                                card_name=card.name,
+                                bug_description=_bug_desc,
+                                trello_client=trello,
+                                slack_client=__import__("pipeline.slack_client", fromlist=["SlackClient"]).SlackClient(),
+                            )
+                            if _dm_result.get("sent_count", 0) > 0:
+                                st.caption(f"Bug DM sent to {_dm_result['sent_count']} developer(s)")
+                            st.session_state[f"bug_dm_sent_{card.id}"] = True
+                        except Exception as _dm_err:
+                            logger.warning("Bug DM failed for card %s: %s", card.id, _dm_err)
 
     with tab_history:
         st.subheader("📋 Pipeline History")
@@ -1344,7 +1374,203 @@ def main() -> None:
                             st.markdown(tc_text[:800] + ("…" if len(tc_text) > 800 else ""))
 
     with tab_signoff:
-        st.info("Sign Off tab coming in Phase 8.")
+        st.markdown("## Sign Off")
+
+        # Instantiate TrelloClient for list fetching and card moves
+        try:
+            trello = TrelloClient()
+        except Exception:
+            trello = None
+
+        cards_so: list = st.session_state.get("rqa_cards", [])
+        approved_so: dict = st.session_state.get("rqa_approved", {})
+        tc_store_so: dict = st.session_state.get("rqa_test_cases", {})
+        release_so: str = st.session_state.get("rqa_release", "")
+
+        if not cards_so:
+            st.info("Load cards in the **Release QA** tab first, then return here to sign off.")
+        else:
+            # ── Slack configuration gate ─────────────────────────────────
+            if not slack_configured():
+                st.warning(
+                    "Slack not configured. Set `SLACK_WEBHOOK_URL` or "
+                    "`SLACK_BOT_TOKEN` + `SLACK_CHANNEL` in `.env` to enable sign-off posting."
+                )
+
+            st.markdown(f"**Release:** `{release_so or '(no release label)'}`")
+            st.divider()
+
+            # ── Card approval summary ─────────────────────────────────────
+            st.markdown("### Cards Verified")
+            verified_cards = []
+            backlog_cards  = []
+            for card in cards_so:
+                is_approved = approved_so.get(card.id, False)
+                _verdict = getattr(
+                    st.session_state.get(f"sav_report_{card.id}"), "verdict", ""
+                ).lower()
+                icon = "Yes" if is_approved else ("No" if _verdict == "fail" else "")
+                st.checkbox(
+                    f"{icon} {card.name}",
+                    value=is_approved,
+                    disabled=True,
+                    key=f"so_check_{card.id}",
+                )
+                if is_approved:
+                    verified_cards.append({"name": card.name, "url": card.url})
+
+            st.divider()
+
+            # ── Bug list ──────────────────────────────────────────────────
+            st.markdown("### Bugs / Backlog Items")
+            _auto_bugs = []
+            for card in cards_so:
+                _rpt = st.session_state.get(f"sav_report_{card.id}")
+                if _rpt and getattr(_rpt, "verdict", "").lower() == "fail":
+                    _errs = getattr(_rpt, "errors", []) or []
+                    bug_text = f"[{card.name}] " + ("; ".join(_errs) if _errs else "Verdict: fail")
+                    _auto_bugs.append(bug_text)
+
+            _bugs_default = "\n".join(_auto_bugs) if _auto_bugs else ""
+            bugs_text = st.text_area(
+                "Bug / backlog items (one per line)",
+                value=st.session_state.get("signoff_bugs", _bugs_default),
+                height=120,
+                key="signoff_bugs_input",
+                placeholder="Bug title 1\nBug title 2",
+            )
+            st.session_state["signoff_bugs"] = bugs_text
+            backlog_cards = [{"name": b.strip()} for b in bugs_text.splitlines() if b.strip()]
+
+            st.divider()
+
+            # ── Sign-off message composer ─────────────────────────────────
+            st.markdown("### Sign-Off Message")
+            _mentions_input = st.text_input(
+                "Mention users (comma-separated Slack usernames, no @)",
+                value=st.session_state.get("signoff_mentions", ""),
+                key="signoff_mentions_input",
+                placeholder="john, jane",
+            )
+            st.session_state["signoff_mentions"] = _mentions_input
+            _mentions_list = [m.strip() for m in _mentions_input.split(",") if m.strip()]
+
+            _cc_input = st.text_input(
+                "CC (Slack username, no @)",
+                value=st.session_state.get("signoff_cc", ""),
+                key="signoff_cc_input",
+            )
+            st.session_state["signoff_cc"] = _cc_input
+
+            _qa_lead = st.text_input(
+                "QA Lead name",
+                value=st.session_state.get("signoff_qa_lead", ""),
+                key="signoff_qa_lead_input",
+            )
+            st.session_state["signoff_qa_lead"] = _qa_lead
+
+            # Preview
+            _preview_lines = []
+            if _mentions_list:
+                _preview_lines.append("  ".join(f"@{m}" for m in _mentions_list))
+                _preview_lines.append("")
+            _preview_lines.append(
+                f"We've completed testing *{release_so}* and it's good for the release"
+            )
+            _preview_lines.append("")
+            _preview_lines.append("*Cards Verified:*")
+            for vc in verified_cards:
+                _preview_lines.append(f"{vc['name']}\n{vc.get('url','')}")
+            _preview_lines.append("")
+            _preview_lines.append(f"*Cards added to backlog ({len(backlog_cards)}):*")
+            for bc in backlog_cards:
+                _preview_lines.append(bc["name"])
+            _preview_lines.append("")
+            _preview_lines.append("*QA Signed off*")
+            if _cc_input:
+                _preview_lines.append(f"CC: @{_cc_input.lstrip('@')}")
+            if _qa_lead:
+                _preview_lines.append(f"Signed by: {_qa_lead}")
+
+            _preview_msg = "\n".join(_preview_lines)
+            st.session_state["signoff_message"] = _preview_msg
+
+            with st.expander("Preview Sign-Off Message", expanded=True):
+                st.code(_preview_msg, language="")
+
+            st.divider()
+
+            # ── Send Sign-Off ─────────────────────────────────────────────
+            _signoff_sent = st.session_state.get("signoff_sent", False)
+
+            if _signoff_sent:
+                st.success("Sign-Off sent! Release marked as QA-done.")
+            else:
+                _channel_override = st.text_input(
+                    "Post to channel (leave blank for default)",
+                    value="",
+                    key="signoff_channel_override",
+                    placeholder="C09F65XF4ER",
+                )
+
+                # QA-done Trello list selector
+                _qa_done_list_id = ""
+                if trello:
+                    try:
+                        _all_lists = trello.get_lists()
+                        _list_opts = {lst.name: lst.id for lst in _all_lists}
+                        _qa_done_name = st.selectbox(
+                            "Move approved cards to list",
+                            options=list(_list_opts.keys()),
+                            key="signoff_qa_done_list",
+                        )
+                        _qa_done_list_id = _list_opts.get(_qa_done_name, "")
+                    except Exception:
+                        st.caption("Trello list selector unavailable.")
+                else:
+                    st.caption("Trello list selector unavailable.")
+
+                _send_disabled = not slack_configured() or not verified_cards
+                if st.button(
+                    "Send Sign-Off",
+                    type="primary",
+                    disabled=_send_disabled,
+                    key="send_signoff_btn",
+                ):
+                    with st.spinner("Sending Sign-Off to Slack..."):
+                        _errors = []
+
+                        # Post to Slack
+                        try:
+                            _slack_result = slack_post_signoff(
+                                release=release_so,
+                                verified_cards=verified_cards,
+                                backlog_cards=backlog_cards,
+                                mentions=_mentions_list or None,
+                                cc=_cc_input,
+                                qa_lead=_qa_lead,
+                                channel=_channel_override.strip() or None,
+                            )
+                            if not _slack_result.get("ok"):
+                                _errors.append(f"Slack: {_slack_result.get('error', 'unknown error')}")
+                        except Exception as _se:
+                            _errors.append(f"Slack: {_se}")
+
+                        # Move approved cards to QA-done list
+                        if _qa_done_list_id and trello:
+                            for card in cards_so:
+                                if approved_so.get(card.id):
+                                    try:
+                                        trello.move_card_to_list_by_id(card.id, _qa_done_list_id)
+                                    except Exception as _te:
+                                        _errors.append(f"Trello move {card.name}: {_te}")
+
+                        if _errors:
+                            for _err in _errors:
+                                st.warning(f"{_err}")
+                        else:
+                            st.session_state["signoff_sent"] = True
+                            st.rerun()
 
     with tab_manual:
         st.info("Write Automation coming in Phase 9.")
