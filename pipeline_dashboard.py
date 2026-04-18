@@ -413,7 +413,7 @@ def main() -> None:
         ollama_ok = False
 
     # ── code_paths_initialized guard ───────────────────────────────────────
-    if "code_paths_initialized" not in st.session_state:
+    if not st.session_state.get("code_paths_initialized"):
         if config.MCSL_AUTOMATION_REPO_PATH:
             st.session_state["automation_code_path"] = config.MCSL_AUTOMATION_REPO_PATH
         if config.STOREPEPSAAS_SERVER_PATH:
