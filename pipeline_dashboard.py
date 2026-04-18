@@ -496,10 +496,24 @@ def main() -> None:
         _auto_sync  = _idx_stats.get("automation_sync", {})
         _mcsl_sync  = _idx_stats.get("server_sync", {})
 
+        # Wiki chunk count lives in the knowledge collection (not code collection)
+        _wiki_cnt = 0
+        try:
+            import chromadb as _chromadb
+            _kb_client = _chromadb.PersistentClient(path=config.CHROMA_PATH)
+            _kb_col = _kb_client.get_collection(config.CHROMA_COLLECTION)
+            _wiki_cnt = len(_kb_col.get(where={"source_type": "wiki"}, include=[])["ids"])
+        except Exception:
+            pass
+
+        def _wiki_badge(cnt):
+            return f"✅ {cnt} chunks" if cnt > 0 else "⬜ Not indexed"
+
         st.markdown(
             f"<div style='font-size:0.75rem;line-height:1.8'>"
             f"<b>✍️ Automation:</b> {_sync_badge(_auto_cnt, _auto_sync)}<br>"
-            f"<b>🏪 MCSL App:</b> {_sync_badge(_mcsl_cnt, _mcsl_sync)}"
+            f"<b>🏪 MCSL App:</b> {_sync_badge(_mcsl_cnt, _mcsl_sync)}<br>"
+            f"<b>📖 Wiki:</b> {_wiki_badge(_wiki_cnt)}"
             f"</div>",
             unsafe_allow_html=True,
         )
