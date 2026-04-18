@@ -743,3 +743,21 @@ def test_auto01_no_api_key():
 
     assert result.error != ""
     assert result.pom_code == ""
+
+
+# ---------------------------------------------------------------------------
+# AUTO-02: explore_feature() — Chrome Agent ExplorationResult
+# ---------------------------------------------------------------------------
+
+def test_auto02_explore_error():
+    """explore_feature() returns ExplorationResult with error field when browser launch fails — never raises."""
+    from unittest.mock import patch
+
+    with patch("pipeline.chrome_agent._launch_browser", side_effect=Exception("browser unavailable")):
+        from pipeline.chrome_agent import explore_feature, ExplorationResult
+        result = explore_feature("Label Generation")
+
+    assert isinstance(result, ExplorationResult)
+    assert result.error != ""
+    assert "browser unavailable" in result.error
+    assert result.ax_tree_text == ""
