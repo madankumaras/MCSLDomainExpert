@@ -3349,7 +3349,27 @@ def main() -> None:
                             else:
                                 st.caption("No duplicate warning recorded for the selected sheet tab yet.")
 
-                            if st.button("📤 Publish Test Cases", key=f"publish_tcs_{card.id}", type="primary"):
+                            _pub_action_cols = st.columns([1, 1])
+                            with _pub_action_cols[0]:
+                                _save_trello_only = st.button("💬 Save to Trello Comment", key=f"save_trello_tc_{card.id}", use_container_width=True)
+                            with _pub_action_cols[1]:
+                                _publish_full = st.button("📤 Publish Test Cases", key=f"publish_tcs_{card.id}", type="primary", use_container_width=True)
+
+                            if _save_trello_only:
+                                with st.spinner("Saving test cases to Trello comment…"):
+                                    try:
+                                        write_test_cases_to_card(
+                                            card_id=card.id,
+                                            test_cases=_edited_tc,
+                                            trello=trello,
+                                            release=st.session_state.get("rqa_release", ""),
+                                            card_name=card.name,
+                                        )
+                                        st.success("✅ Test cases saved to Trello comment.")
+                                    except Exception as _trello_only_err:
+                                        st.error(f"Failed to save to Trello: {_trello_only_err}")
+
+                            if _publish_full:
                                 with st.spinner("Publishing test cases to Trello and Google Sheets…"):
                                     _publish_errors = []
                                     _tc_to_write = _edited_tc
