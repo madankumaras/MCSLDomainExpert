@@ -37,7 +37,7 @@ def _make_llm():
         model=config.CLAUDE_SONNET_MODEL,
         api_key=config.ANTHROPIC_API_KEY,
         temperature=0,
-        max_tokens=900,
+        max_tokens=2048,
     )
 
 
