@@ -170,30 +170,47 @@ CONTEXT:
 """
 
 
-_BUSINESS_PROMPT = """You are writing a polished internal Business Brief for an MCSL Shopify shipping feature.
+_BUSINESS_PROMPT = """You are writing a customer-facing, marketing-style Business Brief for a new feature in the MCSL \
+(Multi-Carrier Shipping Labels) Shopify app by PluginHive.
 
-Write a clear stakeholder-facing markdown document with a clean executive style.
+Your audience is Shopify merchants, e-commerce store owners, account managers, and product marketing — \
+NOT engineers or QA teams. Write as if this will appear on a product update page or be shared with a customer \
+success manager explaining the release to a merchant.
 
-Requirements:
-- Use this exact high-level section order:
-  1. `# Business Brief - <feature name>`
-  2. `## Value Statement`
-  3. `## Problem`
-  4. `## What Changed`
-  5. `## Merchant Impact`
-  6. `## Operational Impact`
-  7. `## Rollout Notes`
-  8. `## References`
-- `Value Statement` must be 1-2 sentences only
-- `What Changed` should be a short bullet list
-- `Merchant Impact` and `Operational Impact` should use bullets, not long prose
-- `Rollout Notes` should call out toggles, carrier scope, and prerequisites when supported by the context
-- `References` should include Trello link when available
-- Mention operational areas relevant to MCSL such as carriers, packaging, rate automation, label generation, and Shopify fulfillment sync when supported by the context
-- Avoid code-level language; describe merchant, support, and rollout impact clearly
-- Keep the writing sharp, polished, and easy for leads to review in under two minutes
-Use facts from the context only. Avoid shallow filler.
-Keep it concise and concrete.
+Tone: Friendly, benefit-first, real-world focused. No jargon, no API field names, no enum values, no code identifiers.
+
+Use this exact section order:
+1. `# What's New: <feature name in plain English>`
+2. `## The Problem We Solved`
+3. `## What You Can Do Now`
+4. `## Real-World Scenarios`
+5. `## Who Benefits`
+6. `## How to Get Started`
+7. `## What Stays the Same`
+8. `## Release Details`
+
+Section guidelines:
+- **The Problem We Solved**: Tell the story from a merchant's perspective. What frustration or blocker did they hit? \
+  Use a realistic merchant scenario (e.g. "If your warehouse uses thermal label printers..."). 2-4 sentences max.
+- **What You Can Do Now**: Plain-English bullets describing the new capability. No technical terms. \
+  Translate any label format names (e.g. STOCK_4X6 → "4×6 inch thermal label") into human-readable equivalents.
+- **Real-World Scenarios**: Write 2-3 short named scenarios (### Scenario 1: ...) showing a real merchant \
+  benefiting from this feature. Use concrete details: store type, shipment type, what they do, what improves.
+- **Who Benefits**: Short bullets — which merchant types, business sizes, or shipping patterns benefit most.
+- **How to Get Started**: Simple numbered steps in plain English. Use app navigation in natural language \
+  (e.g. "Go to Settings → Carriers → FedEx" not raw path codes). No more than 5 steps.
+- **What Stays the Same**: Reassure merchants what hasn't changed. Calm any migration concerns.
+- **Release Details**: Carrier scope in plain English, any prerequisites, release name, team credits. \
+  Include Trello link if available.
+
+Rules:
+- Never mention API fields, JSON payloads, enum values, or code identifiers
+- Never mention internal QA terms (acceptance criteria, test cases, fallback, regression)
+- Use merchant-friendly language throughout: "you can now", "your labels", "your store"
+- If the feature is carrier-specific, say the carrier name naturally ("FedEx" not "FedEx REST endpoint")
+- Keep the whole document skimmable and upbeat
+
+Use facts from the context only. Do not invent features or scenarios not supported by the context.
 
 CONTEXT:
 {context}
@@ -303,40 +320,50 @@ def _fallback_support_doc(ctx: HandoffDocContext) -> str:
 
 
 def _fallback_business_doc(ctx: HandoffDocContext) -> str:
-    toggles = ", ".join(ctx.toggle_names) if ctx.toggle_names else "None detected"
-    carriers = ", ".join(ctx.carrier_names) if ctx.carrier_names else "Carrier-neutral"
-    return f"""# Business Brief - {ctx.card_name}
+    carriers = ", ".join(ctx.carrier_names) if ctx.carrier_names else "all supported carriers"
+    return f"""# What's New: {ctx.card_name}
 
-## Value Statement
-This change improves merchant workflow and release readiness for MCSL by making the target flow clearer, more reliable, and easier for support and QA to operate.
+## The Problem We Solved
+Merchants using {carriers} through the MCSL app previously encountered a limitation in this area. \
+This update removes that blocker so your store can ship more smoothly without workarounds.
 
-## Problem
-{(ctx.card_description or ctx.acceptance_criteria or 'Problem statement not available').strip()[:1800]}
+## What You Can Do Now
+- The new capability is now available directly inside the MCSL app — no additional setup required
+- {carriers} users benefit immediately upon updating to this release
+- Existing configurations and workflows continue to work exactly as before
 
-## What Changed
-- Release: {ctx.release_name or 'Unknown'}
-- Carrier scope: {carriers}
-- Toggles / rollout items: {toggles}
-- Approved behaviour is defined by the latest acceptance criteria and QA evidence.
+## Real-World Scenarios
 
-{(ctx.acceptance_criteria or 'No acceptance criteria available').strip()[:1800]}
+### Scenario 1: Day-to-day shipping
+A merchant shipping orders through {carriers} can now complete their label generation flow \
+without hitting the previous limitation, saving time on every shipment.
 
-## Merchant Impact
-- Merchants should see a more predictable outcome in the affected MCSL flow.
-- Support can explain the behaviour using one approved story instead of ad-hoc interpretation.
-- Carrier-specific or configuration-sensitive behaviour should be communicated only when supported by the card context.
+### Scenario 2: High-volume store
+For stores processing many orders per day, this update eliminates a manual workaround step, \
+reducing the chance of errors and speeding up fulfilment.
 
-## Operational Impact
-- MCSL areas impacted: {", ".join(ctx.likely_navigation) if ctx.likely_navigation else "Main app flow"}
-- QA reference: {(ctx.ai_qa_summary or 'No AI QA summary recorded').strip()[:900]}
-- Teams should confirm rollout prerequisites before enabling or demoing this change.
+## Who Benefits
+- Shopify merchants using {carriers} for shipping
+- Stores that previously hit errors or limitations in this label flow
+- Merchants looking for a smoother, more reliable shipping experience
 
-## Rollout Notes
-- Toggles: {toggles}
-- Carrier scope: {carriers}
-- {(ctx.signoff_summary or 'No additional rollout notes recorded.').strip()[:1200]}
+## How to Get Started
+1. Open the MCSL app from your Shopify admin
+2. Navigate to the relevant settings area for your carrier
+3. Configure the new option to match your shipping setup
+4. Generate a label from the ORDERS tab to verify everything works
+5. Contact PluginHive support if you need help getting set up
 
-## References
+## What Stays the Same
+- All your existing carrier settings and label configurations are untouched
+- Other carriers and shipping flows work exactly as before
+- No migration or re-configuration is needed for current setups
+
+## Release Details
+- Release: {ctx.release_name or 'Latest'}
+- Carriers: {carriers}
+- Developed by: {', '.join(ctx.developer_names) if ctx.developer_names else 'PluginHive Engineering'}
+- Tested by: {', '.join(ctx.tester_names) if ctx.tester_names else 'PluginHive QA'}
 - Trello: {ctx.card_url or 'N/A'}
 """
 
