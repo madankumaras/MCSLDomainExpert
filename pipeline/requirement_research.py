@@ -247,3 +247,7 @@ def _build_requirement_research_context_cached(request_text: str, max_docs: int)
 
 def build_requirement_research_context(request_text: str, *, max_docs: int = 4) -> str:
     return _build_requirement_research_context_cached(request_text or "", max_docs)
+
+
+def clear_requirement_research_cache() -> None:
+    _build_requirement_research_context_cached.cache_clear()

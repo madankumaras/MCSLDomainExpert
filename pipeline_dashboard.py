@@ -28,6 +28,7 @@ import streamlit as st
 from pipeline.domain_validator import apply_validation_fixes, validate_card, ValidationReport
 from pipeline.release_analyser import analyse_release, CardSummary as RASummary, ReleaseAnalysis
 from pipeline.card_processor import (
+    clear_tc_context_caches,
     generate_acceptance_criteria,
     generate_test_cases,
     get_last_ac_review,
@@ -52,6 +53,7 @@ from pipeline.slack_client import post_signoff as slack_post_signoff, slack_conf
 from pipeline.bug_reporter import is_qa_name, notify_devs_of_bug
 from pipeline.bug_reporter import diagnose_customer_ticket
 from pipeline.locator_knowledge import get_scenario_locator_entries, update_scenario_locator_review
+from pipeline.requirement_research import clear_requirement_research_cache
 
 # ── History persistence helpers ────────────────────────────────────────────────
 
@@ -1361,6 +1363,11 @@ def _analyse_loaded_card(card: Any) -> tuple[str, ValidationReport, dict | None]
     return getattr(card, "id", ""), validation, diagnosis
 
 
+def _clear_generation_context_caches() -> None:
+    clear_requirement_research_cache()
+    clear_tc_context_caches()
+
+
 def _normalise_card_diagnosis(card: Any, diagnosis: dict | None) -> dict | None:
     """Apply deterministic carrier-scope correction from visible card evidence."""
     if not diagnosis:
@@ -1797,6 +1804,7 @@ def main() -> None:
                     from rag.code_indexer import index_codebase
                     with st.spinner("Re-indexing…"):
                         index_codebase(auto_path, "automation", clear_existing=True)
+                        _clear_generation_context_caches()
                     st.success("Re-indexed.")
                     st.rerun()
 
@@ -1885,6 +1893,8 @@ def main() -> None:
                                     clear_existing=True,
                                 )
                             )
+                        if reindex_results:
+                            _clear_generation_context_caches()
                     if not reindex_results:
                         st.warning("Set backend and/or frontend path first.")
                     elif any(r.get("error") for r in reindex_results):
@@ -1924,6 +1934,7 @@ def main() -> None:
                         if _docs:
                             _vs = get_vectorstore()
                             _vs.add_documents(_docs)
+                            _clear_generation_context_caches()
                             st.success(f"✅ Indexed {len(_docs)} wiki chunks.")
                             st.rerun()
                         else:

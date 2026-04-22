@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from textwrap import dedent
 
@@ -53,22 +52,6 @@ def _normalise_model_text(content) -> str:
         if isinstance(inner, str):
             return inner.strip()
     return str(content).strip()
-
-
-def _invoke_llm_with_timeout(llm, prompt: str, *, timeout_seconds: int | None = None):
-    timeout = timeout_seconds or _LLM_TIMEOUT_SECONDS
-    executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(llm.invoke, [HumanMessage(content=prompt)])
-    try:
-        return future.result(timeout=timeout)
-    except FuturesTimeoutError as exc:
-        raise TimeoutError(
-            f"Claude diagnosis request timed out after {timeout}s."
-        ) from exc
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
-
-
 @dataclass
 class TicketDiagnosis:
     issue_type: str = "unknown"
@@ -293,28 +276,29 @@ def diagnose_ticket(ticket_text: str, model: str | None = None) -> TicketDiagnos
             api_key=config.ANTHROPIC_API_KEY,
             temperature=0,
             max_tokens=1200,
+            default_request_timeout=_LLM_TIMEOUT_SECONDS,
         )
-        response = _invoke_llm_with_timeout(llm, prompt)
+        response = llm.invoke([HumanMessage(content=prompt)])
         raw = _normalise_model_text(getattr(response, "content", response))
         try:
             data = _extract_first_json_object(raw)
         except Exception:
             try:
-                repair_resp = _invoke_llm_with_timeout(
-                    llm,
-                    DIAGNOSIS_JSON_REPAIR_PROMPT.format(raw_output=raw[:4000]),
-                )
+                repair_resp = llm.invoke([
+                    HumanMessage(content=DIAGNOSIS_JSON_REPAIR_PROMPT.format(raw_output=raw[:4000]))
+                ])
                 data = _extract_first_json_object(
                     _normalise_model_text(getattr(repair_resp, "content", repair_resp))
                 )
             except Exception:
-                retry_resp = _invoke_llm_with_timeout(
-                    llm,
-                    DIAGNOSIS_MINIMAL_RETRY_PROMPT.format(
-                        ticket_text=(ticket_text or "(empty ticket)")[:1600],
-                        carrier_scope=carrier_prompt_block(ticket_text),
-                    ),
-                )
+                retry_resp = llm.invoke([
+                    HumanMessage(
+                        content=DIAGNOSIS_MINIMAL_RETRY_PROMPT.format(
+                            ticket_text=(ticket_text or "(empty ticket)")[:1600],
+                            carrier_scope=carrier_prompt_block(ticket_text),
+                        )
+                    )
+                ])
                 data = _extract_first_json_object(
                     _normalise_model_text(getattr(retry_resp, "content", retry_resp))
                 )

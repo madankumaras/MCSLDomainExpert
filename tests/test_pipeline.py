@@ -1370,4 +1370,5 @@ def test_validate_ac_load_cards_also_populates_diagnosis():
     """Validate AC load flow should create diagnosis state so extra diagnosis step is not needed."""
     src = Path("pipeline_dashboard.py").read_text(encoding="utf-8")
 
-    assert 'st.session_state[f"diagnosis_{_card.id}"] = diagnose_customer_ticket(' in src
+    assert "def _analyse_loaded_card(card: Any)" in src
+    assert 'st.session_state[f"diagnosis_{_card_id}"] =' in src

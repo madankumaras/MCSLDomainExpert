@@ -11,7 +11,6 @@ import json
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from textwrap import dedent
 
@@ -100,21 +99,8 @@ def _make_llm():
         api_key=config.ANTHROPIC_API_KEY,
         temperature=0,
         max_tokens=900,
+        default_request_timeout=_LLM_TIMEOUT_SECONDS,
     )
-
-
-def _invoke_llm_with_timeout(llm, prompt: str, *, timeout_seconds: int | None = None):
-    timeout = timeout_seconds or _LLM_TIMEOUT_SECONDS
-    executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(llm.invoke, [HumanMessage(content=prompt)])
-    try:
-        return future.result(timeout=timeout)
-    except FuturesTimeoutError as exc:
-        raise TimeoutError(
-            f"Claude validator request timed out after {timeout}s."
-        ) from exc
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _basic_fallback_validation(
@@ -473,16 +459,15 @@ def validate_card(
     )
     try:
         llm = _make_llm()
-        response = _invoke_llm_with_timeout(llm, prompt)
+        response = llm.invoke([HumanMessage(content=prompt)])
         raw = _normalise_model_text(getattr(response, "content", response))
         try:
             data = _extract_first_json_object(raw)
         except Exception:
             try:
-                repair_resp = _invoke_llm_with_timeout(
-                    llm,
-                    VALIDATION_JSON_REPAIR_PROMPT.format(raw_output=raw[:4000]),
-                )
+                repair_resp = llm.invoke([
+                    HumanMessage(content=VALIDATION_JSON_REPAIR_PROMPT.format(raw_output=raw[:4000]))
+                ])
                 repaired_raw = _normalise_model_text(getattr(repair_resp, "content", repair_resp))
                 data = _extract_first_json_object(repaired_raw)
             except Exception:
@@ -493,7 +478,7 @@ def validate_card(
                     carrier_scope=_compact_context(_compact_carrier_scope, 500),
                 )
                 try:
-                    retry_resp = _invoke_llm_with_timeout(llm, minimal_prompt)
+                    retry_resp = llm.invoke([HumanMessage(content=minimal_prompt)])
                     retry_raw = _normalise_model_text(getattr(retry_resp, "content", retry_resp))
                     data = _extract_first_json_object(retry_raw)
                 except Exception as parse_exc:
@@ -553,5 +538,5 @@ def apply_validation_fixes(
         temperature=0,
         max_tokens=2048,
     )
-    response = _invoke_llm_with_timeout(llm, prompt)
+    response = llm.invoke([HumanMessage(content=prompt)])
     return _normalise_model_text(getattr(response, "content", response)) or acceptance_criteria

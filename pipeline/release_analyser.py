@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from textwrap import dedent
 
@@ -19,22 +18,6 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage
 
 _LLM_TIMEOUT_SECONDS = int(os.environ.get("MCSL_LLM_TIMEOUT_SECONDS", "90"))
-
-
-def _invoke_llm_with_timeout(llm, prompt: str, *, timeout_seconds: int | None = None):
-    timeout = timeout_seconds or _LLM_TIMEOUT_SECONDS
-    executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(llm.invoke, [HumanMessage(content=prompt)])
-    try:
-        return future.result(timeout=timeout)
-    except FuturesTimeoutError as exc:
-        raise TimeoutError(
-            f"Claude release-analysis request timed out after {timeout}s."
-        ) from exc
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
-
-
 @dataclass
 class CardSummary:
     card_id: str
@@ -239,8 +222,9 @@ def analyse_release(release_name: str, cards: list[CardSummary]) -> ReleaseAnaly
             api_key=config.ANTHROPIC_API_KEY,
             temperature=0,
             max_tokens=max_tokens,
+            default_request_timeout=_LLM_TIMEOUT_SECONDS,
         )
-        response = _invoke_llm_with_timeout(llm, prompt)
+        response = llm.invoke([HumanMessage(content=prompt)])
         raw = _normalise_model_text(getattr(response, "content", response))
         raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
         m = re.search(r"\{.*\}", raw, re.DOTALL)
