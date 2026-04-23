@@ -4828,7 +4828,7 @@ def main() -> None:
                         except Exception as _dm_err:
                             logger.warning("Bug DM failed for card %s: %s", card.id, _dm_err)
 
-                if show_automation_stage:
+                if show_automation_stage and card is cards[-1]:
                     st.divider()
                     _approved_count = sum(1 for _card in cards if approved_store.get(_card.id, False))
                     if _approved_count < len(cards):
