@@ -967,13 +967,32 @@ def regenerate_with_feedback(
     )
 
 
+def _extract_bdd_steps(block: str) -> list[str]:
+    """Extract Given/When/And/Then/But lines from a TC block."""
+    steps = []
+    in_steps = False
+    for line in block.splitlines():
+        stripped = line.strip()
+        if re.match(r"\*\*Steps:\*\*", stripped, re.IGNORECASE):
+            in_steps = True
+            continue
+        if in_steps and re.match(r"\*\*.+\*\*", stripped) and not re.match(
+            r"^(Given|When|And|Then|But)\b", stripped, re.IGNORECASE
+        ):
+            break
+        if re.match(r"^(Given|When|And|Then|But)\b", stripped, re.IGNORECASE):
+            steps.append(stripped)
+            in_steps = True
+    return steps
+
+
 def format_qa_comment(
     card_name: str,
     test_cases_markdown: str,
     release: str = "",
     qa_name: str = "",
 ) -> str:
-    """Format a FedEx-style grouped QA summary comment for Trello."""
+    """Format test cases as BDD scenarios for a Trello comment."""
     blocks = re.split(r"(?=^#{2,3}\s+TC-\d+)", test_cases_markdown, flags=re.MULTILINE)
     groups: dict[str, list[str]] = {"Positive": [], "Negative": [], "Edge": []}
 
@@ -989,14 +1008,16 @@ def format_qa_comment(
         type_match = re.search(r"\*\*Type:\*\*\s*(Positive|Negative|Edge)", block, re.IGNORECASE)
         tc_type = type_match.group(1).capitalize() if type_match else "Positive"
 
-        then_match = re.search(r"^Then (.+)$", block, re.MULTILINE | re.IGNORECASE)
-        result = then_match.group(1).strip() if then_match else ""
+        steps = _extract_bdd_steps(block)
+        scenario_lines = [f"**Scenario: {tc_num} — {tc_title}**"]
+        if steps:
+            scenario_lines.extend(f"    {s}" for s in steps)
+        else:
+            then_match = re.search(r"^Then (.+)$", block, re.MULTILINE | re.IGNORECASE)
+            if then_match:
+                scenario_lines.append(f"    Then {then_match.group(1).strip()}")
 
-        one_liner = f"• {tc_num}: {tc_title}"
-        if result:
-            one_liner += f" — {result}"
-
-        groups.get(tc_type, groups["Positive"]).append(one_liner)
+        groups.get(tc_type, groups["Positive"]).append("\n".join(scenario_lines))
 
     release_str = f" ({release})" if release else ""
     lines = [f"📋 **QA Test Cases — {card_name}{release_str}**"]
@@ -1004,12 +1025,18 @@ def format_qa_comment(
         lines.append(f"_Prepared by: {qa_name}_")
     lines.append("")
 
-    icons = {"Positive": "✅ Positive", "Negative": "❌ Negative", "Edge": "⚠️ Edge"}
+    icons = {
+        "Positive": "✅ Positive Scenarios",
+        "Negative": "❌ Negative Scenarios",
+        "Edge": "⚠️ Edge Scenarios",
+    }
     for tc_type, icon_label in icons.items():
         if groups[tc_type]:
             lines.append(f"**{icon_label}**")
-            lines.extend(groups[tc_type])
             lines.append("")
+            for scenario in groups[tc_type]:
+                lines.append(scenario)
+                lines.append("")
 
     total = sum(len(v) for v in groups.values())
     lines.append(
