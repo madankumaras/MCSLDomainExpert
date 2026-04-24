@@ -516,6 +516,36 @@ def _build_generation_brief(
 
 
 # ---------------------------------------------------------------------------
+# Carrier label helpers
+# ---------------------------------------------------------------------------
+
+def _labels_carrier_hint(labels: list[str] | None) -> str:
+    """Extract a carrier hint string from Trello labels (e.g. 'SL: 🚚 UPS' → 'UPS').
+
+    Returns a non-empty string like 'Carrier from labels: UPS, FedEx' when
+    carrier labels are present, so the AC/TC prompts can pin the correct scope.
+    """
+    if not labels:
+        return ""
+    try:
+        from pipeline.carrier_knowledge import CARRIER_PROFILES
+    except Exception:
+        return ""
+
+    found: list[str] = []
+    for label in labels:
+        label_lower = label.lower()
+        for profile in CARRIER_PROFILES:
+            if any(alias in label_lower for alias in profile.aliases):
+                name = profile.canonical_name
+                if name not in found:
+                    found.append(name)
+    if not found:
+        return ""
+    return "Carrier from card labels: " + ", ".join(found)
+
+
+# ---------------------------------------------------------------------------
 # New functions
 # ---------------------------------------------------------------------------
 
@@ -526,22 +556,28 @@ def generate_acceptance_criteria(
     checklists: list[dict] | None = None,
     research_context: str | None = None,
     comments_context: str | None = None,
+    labels: list[str] | None = None,
     *,
     review: bool = False,
 ) -> str:
     """Generate acceptance criteria for a feature request using Claude.
 
     Set review=True to run an additional review-and-rewrite pass (slower but may improve quality).
+    labels: Trello card labels — used to pin the correct carrier scope.
     """
+    labels_text = _labels_carrier_hint(labels)
+    # Prepend the carrier hint to raw_request so it reaches the prompt template
+    # and the generation brief without changing the template signature.
+    effective_request = f"{labels_text}\n\n{raw_request}" if labels_text else raw_request
     generation_brief = _build_generation_brief(
-        raw_request=raw_request,
+        raw_request=effective_request,
         attachments=attachments or [],
         checklists=checklists or [],
         research_context=research_context or "",
         comments_context=comments_context or "",
     )
     prompt = AC_WRITER_PROMPT.format(
-        raw_request=raw_request,
+        raw_request=effective_request,
         comments_context=comments_context or "None",
         generation_brief=generation_brief,
         research_context=research_context or "None",
@@ -572,10 +608,11 @@ def generate_test_cases(card, model: str | None = None, ac_text: str | None = No
     ac_text_str = _requirements_text or "(no AC yet)"
     dev_comments_section = _build_dev_comments_section(comments)
 
+    labels_hint = _labels_carrier_hint(getattr(card, "labels", None))
     try:
         from pipeline.carrier_knowledge import carrier_research_context
 
-        carrier_context = carrier_research_context(card.name, _requirements_text, comments_text)
+        carrier_context = carrier_research_context(card.name, _requirements_text, comments_text, labels_hint)
     except Exception:
         carrier_context = "Carrier scope unavailable."
     carrier_context_section = (

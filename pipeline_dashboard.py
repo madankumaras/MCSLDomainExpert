@@ -3175,6 +3175,7 @@ def main() -> None:
                                             checklists=card.checklists or None,
                                             research_context=_research,
                                             comments_context="\n".join(getattr(card, "comments", []) or []),
+                                            labels=getattr(card, "labels", None) or [],
                                             review=True,
                                         )
                                     st.session_state[_ac_key] = _improved
@@ -3253,6 +3254,7 @@ def main() -> None:
                                             checklists=card.checklists or None,
                                             research_context=_research,
                                             comments_context=_comments,
+                                            labels=getattr(card, "labels", None) or [],
                                         )
                                     st.session_state[_ac_key] = _generated
                                     st.session_state[_ac_review_key] = get_last_ac_review()
