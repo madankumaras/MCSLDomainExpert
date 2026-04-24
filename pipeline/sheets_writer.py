@@ -363,8 +363,12 @@ def append_to_sheet(
     epic: str = "",
     tab_name: str | None = None,
     release: str = "",
+    card_url: str = "",
 ) -> dict:
     """Parse TCs and append to the correct MCSL master sheet tab. Returns metadata dict.
+
+    Inserts a coloured card-header row before each card's TC rows so the sheet
+    groups test cases visually under their source card (with a Trello link).
 
     gspread is imported INSIDE this function so callers can import sheets_writer
     without gspread installed.
@@ -377,17 +381,14 @@ def append_to_sheet(
     if not rows:
         return {"tab": target_tab, "rows_added": 0, "sheet_url": "", "release": release, "duplicates": []}
 
-    # Add release to each row
     for row in rows:
         row.release = release
 
-    # Connect to Google Sheets
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_file(config.GOOGLE_CREDENTIALS_PATH, scopes=scopes)
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(config.GOOGLE_SHEETS_ID)
 
-    # Find target worksheet (partial match for robustness)
     ws = None
     ws_titles = [w.title for w in sh.worksheets()]
     for title in ws_titles:
@@ -396,7 +397,6 @@ def append_to_sheet(
             target_tab = title
             break
     if ws is None:
-        # Fallback to Draft Plan
         for title in ws_titles:
             if "draft" in title.lower():
                 ws = sh.worksheet(title)
@@ -405,14 +405,46 @@ def append_to_sheet(
     if ws is None:
         raise ValueError(f"Sheet tab '{target_tab}' not found in {ws_titles}")
 
-    # Find next SI No
     existing = ws.get_all_values()
-    next_si = len(existing)  # header row counts as row 0
+    next_si = len(existing)
 
-    # Check duplicates before writing
     duplicates = check_duplicates(rows, target_tab)
 
-    # Append rows
+    # ── Card header row ──────────────────────────────────────────────────────
+    # One coloured row per card: card name (hyperlinked when URL available) +
+    # release label so the group is easy to spot at a glance.
+    if card_url:
+        header_cell = f'=HYPERLINK("{card_url}","{card_name.replace(chr(34), chr(39))}")'
+    else:
+        header_cell = card_name
+    release_label = f"Release: {release}" if release else ""
+    num_cols = 9
+    header_row = [header_cell, release_label] + [""] * (num_cols - 2)
+    ws.append_row(header_row, value_input_option="USER_ENTERED")
+
+    # Colour the header row golden-yellow (#FFD966)
+    header_row_index = next_si  # 0-based
+    try:
+        sh.batch_update({"requests": [{"repeatCell": {
+            "range": {
+                "sheetId": ws.id,
+                "startRowIndex": header_row_index,
+                "endRowIndex": header_row_index + 1,
+                "startColumnIndex": 0,
+                "endColumnIndex": num_cols,
+            },
+            "cell": {"userEnteredFormat": {
+                "backgroundColor": {"red": 1.0, "green": 0.851, "blue": 0.4},
+                "textFormat": {"bold": True},
+            }},
+            "fields": "userEnteredFormat(backgroundColor,textFormat)",
+        }}]})
+    except Exception:
+        pass  # colour is cosmetic — don't fail the whole write
+
+    next_si += 1
+
+    # ── TC rows ──────────────────────────────────────────────────────────────
     for row in rows:
         row.si_no = next_si
         ws.append_row([

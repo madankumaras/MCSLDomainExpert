@@ -3764,6 +3764,7 @@ def main() -> None:
                                             epic=card.name,
                                             tab_name=_selected_publish_tab,
                                             release=st.session_state.get("rqa_release", ""),
+                                            card_url=getattr(card, "url", ""),
                                         )
                                     except Exception as _sheet_err:
                                         _publish_errors.append(f"Sheets: {_sheet_err}")
@@ -4377,6 +4378,7 @@ def main() -> None:
                                                 epic=card.name,
                                                 tab_name=_selected_tab,
                                                 release=st.session_state.get("rqa_release", ""),
+                                                card_url=getattr(card, "url", ""),
                                             )
                                         except Exception as _sheet_err:
                                             _approve_errors.append(f"Sheets: {_sheet_err}")
