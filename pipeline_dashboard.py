@@ -4215,6 +4215,7 @@ def main() -> None:
                             "and finalize approval for the card."
                         )
 
+                        _tc_key = f"tc_text_{card.id}"
                         _tc_markdown = st.session_state.get(_tc_key, "").strip()
                         _is_approved = approved_store.get(card.id, False)
                         _approval_report = st.session_state.get(f"sav_report_{card.id}")
