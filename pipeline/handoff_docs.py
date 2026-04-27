@@ -140,28 +140,28 @@ _SUPPORT_PROMPT = """You are writing a polished internal Support Guide for an MC
 Write a practical, support/demo-friendly document in clean markdown.
 
 Requirements:
-- Use this exact high-level section order:
+- Use this exact high-level section order — no other sections allowed:
   1. `# Support Guide - <feature name>`
   2. `## Snapshot`
   3. `## Ownership`
   4. `## Prerequisites`
   5. `## Where to Find It`
   6. `## Support Walkthrough`
-  7. `## Expected Outcome`
-  8. `## Troubleshooting Notes`
-  9. `## Limitations / Rollout Notes`
-  10. `## References`
+  7. `## Scenarios`
+  8. `## Expected Outcome`
 - In `Snapshot`, use 3-5 short bullets only
 - In `Ownership` and `Prerequisites`, keep bullets compact and scannable
-- In `Support Walkthrough`, use numbered steps
-- In `Expected Outcome`, use bullets
-- In `Troubleshooting Notes`, use short bullets, not paragraphs
-- In `References`, include Trello link when available
+- In `Support Walkthrough`, use numbered steps describing the end-to-end flow
+- In `Scenarios`, write 2-3 short named scenarios (### Scenario 1: ...) showing real merchant \
+  or support situations where this feature applies — include what the merchant does and what they see. \
+  Be concrete and specific to the feature; avoid generic examples.
+- In `Expected Outcome`, use bullets describing what a successful result looks like
 - Mention MCSL navigation using only supported paths such as ORDERS, LABELS, PICKUP, hamburger menu items, and Shopify admin verification pages when relevant
 - If carriers are mentioned in context, call them out clearly and mention carrier-specific prerequisites only when supported by the context
 - If the flow involves rate troubleshooting, request log, label request, packaging, or Shopify fulfillment verification, mention that explicitly when supported by the context
 - Keep the tone polished, crisp, and easy for support/demo teams to skim quickly
 - Avoid giant paragraphs and avoid repeating the same facts across sections
+- DO NOT generate any of these sections: Key Findings, AI Code Analysis, Troubleshooting Notes, Limitations / Rollout Notes, References
 Use facts from the context only. Do not invent unsupported details.
 Keep it concise but useful.
 
@@ -275,7 +275,6 @@ def _fallback_support_doc(ctx: HandoffDocContext) -> str:
 - Approved: {ctx.approved_at or 'Unknown'}
 - Carrier scope: {carriers}
 - Toggles: {toggles}
-- Trello: {ctx.card_url or 'N/A'}
 
 ## Ownership
 - Developed by: {devs}
@@ -284,7 +283,7 @@ def _fallback_support_doc(ctx: HandoffDocContext) -> str:
 ## Prerequisites
 - Toggles / rollout items: {toggles}
 - Carriers in scope: {carriers}
-- Confirm store setup, carrier account state, and any packaging or automation prerequisites before demo or troubleshooting.
+- Confirm store setup, carrier account state, and any packaging or automation prerequisites before demo or support.
 
 ## Where to Find It
 {navigation}
@@ -295,24 +294,19 @@ def _fallback_support_doc(ctx: HandoffDocContext) -> str:
 3. Verify the expected system behaviour before checking downstream Shopify or carrier-side evidence.
 4. Use request-log, label, automation, or fulfillment evidence when the issue depends on those paths.
 
+## Scenarios
+
+### Scenario 1: Standard merchant flow
+A merchant using {carriers} opens the MCSL app and follows the walkthrough above. \
+The feature is available without additional configuration once the prerequisites are met.
+
+### Scenario 2: Support triage
+A support agent receives a query about this feature. They confirm prerequisites, \
+reproduce the flow, and verify the expected outcome matches the approved acceptance criteria.
+
 ## Expected Outcome
-- {(ctx.ai_qa_summary or 'Use the approved acceptance criteria and test cases as the expected outcome reference.').strip()[:1200]}
+- {(ctx.ai_qa_summary or 'The feature behaves as described in the approved acceptance criteria and test cases.').strip()[:1200]}
 - The feature should behave consistently with the approved card scope and release notes.
-
-## Troubleshooting Notes
-- Review the Trello card and approved test cases before demoing or triaging.
-- Confirm carrier, settings, packaging, Shopify, and toggle prerequisites first.
-- If this affects rates or checkout, verify request-log and automation-rule behaviour.
-- If this affects fulfillment or tracking, verify both MCSL state and Shopify order state.
-- Use the notes below for the latest approved feature details:
-
-{(ctx.acceptance_criteria or ctx.card_description or 'No description available').strip()[:2500]}
-
-## Limitations / Rollout Notes
-- {(ctx.signoff_summary or 'No additional rollout notes recorded.').strip()[:1200]}
-
-## References
-- Trello: {ctx.card_url or 'N/A'}
 """
 
 
