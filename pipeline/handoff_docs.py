@@ -421,6 +421,8 @@ def _md_to_rl(text: str, sans: str = "Arial") -> str:
     text = re.sub(r'\*\*(.+?)\*\*',     r'<b>\1</b>', text)
     text = re.sub(r'\*(.+?)\*',         r'<i>\1</i>', text)
     text = re.sub(r'`(.+?)`',           r'<font name="Courier" fontSize="9">\1</font>', text)
+    # Strip any unmatched asterisks left over (e.g. from BDD steps bleeding in)
+    text = re.sub(r'\*+', '', text)
     return text
 
 
@@ -693,11 +695,15 @@ def render_pdf_bytes(title: str, markdown_text: str) -> bytes:
         elif re.match(r"^- \[[ xX]\]", clean):
             # Checkbox bullet: - [ ] or - [x]
             checked = bool(re.match(r"^- \[[xX]\]", clean))
-            text = _md_to_rl(re.sub(r"^- \[[ xX]\]\s*", "", clean))
-            box = '<font color="#1d4ed8" fontName="{f}-Bold">{s}</font>'.format(
-                f=SANS, s="☑" if checked else "☐"
-            )
-            story.append(Paragraph(f"{box}  {text}", chk_sty))
+            raw_text = re.sub(r"^- \[[ xX]\]\s*", "", clean)
+            # Strip any leftover ** / * that _md_to_rl couldn't pair-match
+            raw_text = re.sub(r"\*+", "", raw_text)
+            text = _md_to_rl(raw_text)
+            if checked:
+                icon = f'<font color="#16a34a" fontName="{SANS}-Bold" fontSize="13">✓</font>'
+            else:
+                icon = f'<font color="#1d4ed8" fontName="{SANS}-Bold" fontSize="11">✦</font>'
+            story.append(Paragraph(f"{icon}  {text}", chk_sty))
         elif clean.startswith("- ") or clean.startswith("* "):
             text = _md_to_rl(clean[2:].strip())
             story.append(Paragraph(
