@@ -3985,6 +3985,151 @@ def main() -> None:
                             if _ev:
                                 _ev.set()
 
+                        # ── Custom Scenario Runner ─────────────────────────────────
+                        _cust_tc_key      = f"rqa_custom_tc_{card.id}"
+                        _cust_run_key     = f"rqa_custom_running_{card.id}"
+                        _cust_result_key  = f"rqa_custom_result_{card.id}"
+                        _cust_report_key  = f"rqa_custom_report_{card.id}"
+                        _cust_prog_key    = f"rqa_custom_prog_{card.id}"
+                        _cust_stop_key    = f"rqa_custom_stop_{card.id}"
+                        _cust_sev_key     = f"rqa_custom_stopev_{card.id}"
+                        _cust_auto_key    = f"rqa_custom_auto_{card.id}"
+                        _cust_is_running  = bool(st.session_state.get(_cust_run_key))
+
+                        with st.expander("🎯 Custom Test Case", expanded=bool(st.session_state.get(_cust_result_key) or st.session_state.get(_cust_auto_key))):
+                            st.caption("Type any single scenario below and run or write automation for it independently of the card's TCs.")
+                            _cust_text = st.text_area(
+                                "Scenario",
+                                key=_cust_tc_key,
+                                height=140,
+                                placeholder="e.g.\nTC-X: Verify Cleanup button appears for failed package\nGiven I have a multi-package order\nWhen the label generation fails for one package\nThen a Cleanup button should be visible on that package row",
+                                disabled=_cust_is_running,
+                            )
+                            _cust_col_run, _cust_col_auto, _cust_col_stop = st.columns([3, 3, 1])
+                            with _cust_col_run:
+                                _cust_run_clicked = st.button(
+                                    "▶ Run This Case",
+                                    key=f"cust_run_{card.id}",
+                                    disabled=_cust_is_running or not _cust_text.strip() or not url_val,
+                                    type="primary",
+                                )
+                            with _cust_col_auto:
+                                _cust_auto_clicked = st.button(
+                                    "⚙️ Write Automation",
+                                    key=f"cust_auto_{card.id}",
+                                    disabled=_cust_is_running or not _cust_text.strip(),
+                                )
+                            with _cust_col_stop:
+                                _cust_stop_clicked = st.button(
+                                    "⏹",
+                                    key=f"cust_stop_{card.id}",
+                                    disabled=not _cust_is_running,
+                                    help="Stop custom case run",
+                                )
+
+                            if _cust_stop_clicked and _cust_is_running:
+                                st.session_state[_cust_stop_key] = True
+                                _cev = st.session_state.get(_cust_sev_key)
+                                if _cev:
+                                    _cev.set()
+
+                            if _cust_run_clicked and _cust_text.strip() and url_val and not _cust_is_running:
+                                import threading as _cust_threading
+                                _cust_stop_ev = _cust_threading.Event()
+                                st.session_state[_cust_run_key]    = True
+                                st.session_state[_cust_stop_key]   = False
+                                st.session_state[_cust_sev_key]    = _cust_stop_ev
+                                st.session_state[_cust_result_key] = {"done": False}
+                                st.session_state.pop(_cust_prog_key, None)
+
+                                def _run_custom_thread(
+                                    _url=url_val,
+                                    _card_name=card.name,
+                                    _scenario=_cust_text.strip(),
+                                    _event=_cust_stop_ev,
+                                    _rk=_cust_result_key,
+                                    _sk=_cust_stop_key,
+                                    _sek=_cust_sev_key,
+                                    _pk=_cust_prog_key,
+                                    _repk=_cust_report_key,
+                                ):
+                                    try:
+                                        def _cust_prog(sc_idx, sc_title, step_num, step_desc):
+                                            st.session_state[_pk] = {
+                                                "pct": min(0.05 + step_num * 0.1, 0.95),
+                                                "text": f"[{sc_title}] Step {step_num}: {step_desc}",
+                                            }
+
+                                        report = verify_test_cases(
+                                            test_cases_markdown=_scenario,
+                                            card_name=_card_name,
+                                            app_url=_url,
+                                            stop_flag=lambda: _event.is_set() or st.session_state.get(_sk, False),
+                                            progress_cb=_cust_prog,
+                                        )
+                                        st.session_state[_repk] = report
+                                        st.session_state[_rk] = {"done": True, "report": report, "error": None}
+                                    except Exception as _ex:
+                                        st.session_state[_rk] = {"done": True, "report": None, "error": str(_ex)}
+                                    finally:
+                                        st.session_state.pop(_sek, None)
+                                        st.session_state[_cust_run_key] = False
+
+                                _cust_threading.Thread(target=_run_custom_thread, daemon=True).start()
+                                st.rerun()
+
+                            if _cust_auto_clicked and _cust_text.strip() and not _cust_is_running:
+                                with st.spinner("Generating Playwright automation…"):
+                                    try:
+                                        from pipeline.automation_writer import write_automation as _write_auto
+                                        _auto_res = _write_auto(
+                                            feature_name=card.name,
+                                            test_cases_markdown=_cust_text.strip(),
+                                            dry_run=True,
+                                        )
+                                        st.session_state[_cust_auto_key] = _auto_res
+                                    except Exception as _aex:
+                                        st.session_state[_cust_auto_key] = str(_aex)
+
+                            if _cust_is_running:
+                                _cp = st.session_state.get(_cust_prog_key, {})
+                                st.progress(_cp.get("pct", 0.05), text=_cp.get("text", "Running custom scenario…"))
+                                import time as _ctime
+                                _ctime.sleep(3)
+                                st.rerun()
+
+                            _cust_result = st.session_state.get(_cust_result_key, {})
+                            if _cust_result.get("done"):
+                                if _cust_result.get("error"):
+                                    st.error(f"Custom run error: {_cust_result['error']}")
+                                elif _cust_result.get("report"):
+                                    _cr = _cust_result["report"]
+                                    _cs = getattr(_cr, "summary", {}) or {}
+                                    st.success(
+                                        f"Custom run complete — PASS {_cs.get('pass', 0)} · "
+                                        f"FAIL {_cs.get('fail', 0)} · PARTIAL {_cs.get('partial', 0)}"
+                                    )
+                                    with st.expander("Custom Case Evidence", expanded=True):
+                                        _render_report_review(_cr, key_prefix=f"cust_review_{card.id}")
+                                    with st.expander("Raw JSON", expanded=False):
+                                        st.json(_cr.to_dict() if hasattr(_cr, "to_dict") else str(_cr))
+
+                            _cust_auto_result = st.session_state.get(_cust_auto_key)
+                            if _cust_auto_result:
+                                if isinstance(_cust_auto_result, str):
+                                    st.error(f"Automation error: {_cust_auto_result}")
+                                else:
+                                    _spec = getattr(_cust_auto_result, "spec_code", "") or ""
+                                    _pom  = getattr(_cust_auto_result, "pom_code", "") or ""
+                                    if _spec:
+                                        st.markdown("**Generated Spec**")
+                                        st.code(_spec, language="typescript")
+                                    if _pom:
+                                        st.markdown("**Generated POM**")
+                                        st.code(_pom, language="typescript")
+                                    if not _spec and not _pom:
+                                        st.info("Automation writer returned no code output.")
+
                         # Build smart KB context when Run Smart is clicked (before thread)
                         _smart_ctx_key = f"sav_smart_ctx_{card.id}"
                         if run_smart_clicked and url_val and not _is_running and _ranked_tcs:
