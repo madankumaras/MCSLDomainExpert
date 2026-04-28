@@ -2502,6 +2502,194 @@ def main() -> None:
             else:
                 st.markdown("## ⚙️ Generate Automation Script")
 
+            # ── Standalone Quick Custom Test ──────────────────────────────────
+            # Always visible in the AI QA tab, independent of any card/workflow.
+            if show_ai_stage:
+                _qct_run_key    = "qct_running"
+                _qct_result_key = "qct_result"
+                _qct_report_key = "qct_report"
+                _qct_prog_key   = "qct_prog"
+                _qct_stop_key   = "qct_stop"
+                _qct_sev_key    = "qct_stopev"
+                _qct_auto_key   = "qct_auto"
+                _qct_is_running = bool(st.session_state.get(_qct_run_key))
+
+                with st.expander("🎯 Quick Custom Test", expanded=True):
+                    st.caption("Run any scenario directly — no cards or workflow required.")
+
+                    try:
+                        from pipeline.carrier_knowledge import get_default_app_url as _qct_get_url
+                        _qct_default_url = _qct_get_url()
+                    except Exception:
+                        _qct_default_url = ""
+
+                    _qct_url = st.text_input(
+                        "App URL",
+                        value=st.session_state.get("qct_url", _qct_default_url),
+                        key="qct_url_input",
+                        placeholder="https://admin.shopify.com/store/…/apps/mcsl-qa",
+                        disabled=_qct_is_running,
+                    )
+                    st.session_state["qct_url"] = _qct_url
+
+                    _qct_ctx_label = st.text_input(
+                        "Context label (optional — used as card name for AI reasoning)",
+                        value=st.session_state.get("qct_ctx_label", ""),
+                        key="qct_ctx_label_input",
+                        placeholder="e.g. ZI-067 Cleanup button, or leave blank",
+                        disabled=_qct_is_running,
+                    )
+                    st.session_state["qct_ctx_label"] = _qct_ctx_label
+
+                    _qct_scenario = st.text_area(
+                        "Scenario",
+                        value=st.session_state.get("qct_scenario", ""),
+                        key="qct_scenario_input",
+                        height=160,
+                        placeholder=(
+                            "TC-1: Verify Cleanup button appears for failed package\n"
+                            "Given I have a multi-package order\n"
+                            "When the label generation fails for one package\n"
+                            "Then a Cleanup button should be visible on that package row"
+                        ),
+                        disabled=_qct_is_running,
+                    )
+                    st.session_state["qct_scenario"] = _qct_scenario
+
+                    _qct_c1, _qct_c2, _qct_c3 = st.columns([3, 3, 2])
+                    with _qct_c1:
+                        _qct_run_clicked = st.button(
+                            "▶ Run This Case",
+                            key="qct_run_btn",
+                            disabled=_qct_is_running or not _qct_scenario.strip() or not _qct_url.strip(),
+                            type="primary",
+                        )
+                    with _qct_c2:
+                        _qct_auto_clicked = st.button(
+                            "⚙️ Write Automation",
+                            key="qct_auto_btn",
+                            disabled=_qct_is_running or not _qct_scenario.strip(),
+                            type="primary",
+                        )
+                    with _qct_c3:
+                        _qct_stop_clicked = st.button(
+                            "Stop",
+                            key="qct_stop_btn",
+                            disabled=not _qct_is_running,
+                        )
+
+                    if _qct_stop_clicked and _qct_is_running:
+                        st.session_state[_qct_stop_key] = True
+                        _qev = st.session_state.get(_qct_sev_key)
+                        if _qev:
+                            _qev.set()
+
+                    if _qct_run_clicked and _qct_scenario.strip() and _qct_url.strip() and not _qct_is_running:
+                        import threading as _qct_th
+                        _qct_stop_ev = _qct_th.Event()
+                        st.session_state[_qct_run_key]    = True
+                        st.session_state[_qct_stop_key]   = False
+                        st.session_state[_qct_sev_key]    = _qct_stop_ev
+                        st.session_state[_qct_result_key] = {"done": False}
+                        st.session_state.pop(_qct_prog_key, None)
+
+                        def _run_qct_thread(
+                            _url=_qct_url.strip(),
+                            _card_name=(_qct_ctx_label.strip() or "Quick Custom Test"),
+                            _scenario=_qct_scenario.strip(),
+                            _event=_qct_stop_ev,
+                            _rk=_qct_result_key,
+                            _sk=_qct_stop_key,
+                            _sek=_qct_sev_key,
+                            _pk=_qct_prog_key,
+                            _repk=_qct_report_key,
+                        ):
+                            try:
+                                def _qct_prog(sc_idx, sc_title, step_num, step_desc):
+                                    st.session_state[_pk] = {
+                                        "pct": min(0.05 + step_num * 0.1, 0.95),
+                                        "text": f"[{sc_title}] Step {step_num}: {step_desc}",
+                                    }
+
+                                import re as _qre
+                                _tc_text = (
+                                    _scenario
+                                    if _qre.match(r"^#{2,3}\s+TC-\d+", _scenario)
+                                    else f"## TC-1: Custom Scenario\n\n{_scenario}"
+                                )
+                                report = verify_test_cases(
+                                    test_cases_markdown=_tc_text,
+                                    card_name=_card_name,
+                                    app_url=_url,
+                                    stop_flag=lambda: _event.is_set() or st.session_state.get(_sk, False),
+                                    progress_cb=_qct_prog,
+                                    headless=False,
+                                )
+                                st.session_state[_repk] = report
+                                st.session_state[_rk] = {"done": True, "report": report, "error": None}
+                            except Exception as _ex:
+                                st.session_state[_rk] = {"done": True, "report": None, "error": str(_ex)}
+                            finally:
+                                st.session_state.pop(_sek, None)
+                                st.session_state[_qct_run_key] = False
+
+                        _qct_th.Thread(target=_run_qct_thread, daemon=True).start()
+                        st.rerun()
+
+                    if _qct_auto_clicked and _qct_scenario.strip() and not _qct_is_running:
+                        with st.spinner("Generating Playwright automation…"):
+                            try:
+                                from pipeline.automation_writer import write_automation as _qct_write_auto
+                                _qct_auto_res = _qct_write_auto(
+                                    feature_name=_qct_ctx_label.strip() or "Custom Scenario",
+                                    test_cases_markdown=_qct_scenario.strip(),
+                                    dry_run=True,
+                                )
+                                st.session_state[_qct_auto_key] = _qct_auto_res
+                            except Exception as _aex:
+                                st.session_state[_qct_auto_key] = str(_aex)
+
+                    if _qct_is_running:
+                        _qp = st.session_state.get(_qct_prog_key, {})
+                        st.progress(_qp.get("pct", 0.05), text=_qp.get("text", "Running scenario…"))
+                        import time as _qtime
+                        _qtime.sleep(3)
+                        st.rerun()
+
+                    _qct_result = st.session_state.get(_qct_result_key, {})
+                    if _qct_result.get("done"):
+                        if _qct_result.get("error"):
+                            st.error(f"Run error: {_qct_result['error']}")
+                        elif _qct_result.get("report"):
+                            _qr = _qct_result["report"]
+                            _qs = getattr(_qr, "summary", {}) or {}
+                            st.success(
+                                f"Done — PASS {_qs.get('pass', 0)} · "
+                                f"FAIL {_qs.get('fail', 0)} · PARTIAL {_qs.get('partial', 0)}"
+                            )
+                            with st.expander("Evidence", expanded=True):
+                                _render_report_review(_qr, key_prefix="qct_review")
+                            with st.expander("Raw JSON", expanded=False):
+                                st.json(_qr.to_dict() if hasattr(_qr, "to_dict") else str(_qr))
+
+                    _qct_auto_result = st.session_state.get(_qct_auto_key)
+                    if _qct_auto_result:
+                        if isinstance(_qct_auto_result, str):
+                            st.error(f"Automation error: {_qct_auto_result}")
+                        else:
+                            _qspec = getattr(_qct_auto_result, "spec_code", "") or ""
+                            _qpom  = getattr(_qct_auto_result, "pom_code", "") or ""
+                            if _qspec:
+                                st.markdown("**Generated Spec**")
+                                st.code(_qspec, language="typescript")
+                            if _qpom:
+                                st.markdown("**Generated POM**")
+                                st.code(_qpom, language="typescript")
+                            if not _qspec and not _qpom:
+                                st.info("Automation writer returned no code output.")
+
+                st.divider()
+
             trello = None
             cards: list = []
 
@@ -3953,7 +4141,7 @@ def main() -> None:
                         else:
                             st.warning("TC-based verification requires generated test cases. Generate them in Step 3 first, then return here.")
 
-                        _btn_col, _smart_col, _stop_col = st.columns([3, 3, 1])
+                        _btn_col, _smart_col, _stop_col = st.columns([3, 3, 2])
                         with _btn_col:
                             _existing_report = st.session_state.get(_sav_report_key)
                             run_clicked = st.button(
@@ -4006,7 +4194,7 @@ def main() -> None:
                                 placeholder="e.g.\nTC-X: Verify Cleanup button appears for failed package\nGiven I have a multi-package order\nWhen the label generation fails for one package\nThen a Cleanup button should be visible on that package row",
                                 disabled=_cust_is_running,
                             )
-                            _cust_col_run, _cust_col_auto, _cust_col_stop = st.columns([3, 3, 1])
+                            _cust_col_run, _cust_col_auto, _cust_col_stop = st.columns([3, 3, 2])
                             with _cust_col_run:
                                 _cust_run_clicked = st.button(
                                     "▶ Run This Case",
