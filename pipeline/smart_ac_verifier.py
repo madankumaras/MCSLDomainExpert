@@ -54,6 +54,16 @@ _ANTI_BOT_ARGS = [
 
 _AUTH_JSON = Path(config.MCSL_AUTOMATION_REPO_PATH) / "auth.json" if getattr(config, "MCSL_AUTOMATION_REPO_PATH", "") else Path(__file__).parent.parent / "auth.json"
 
+
+def _store_slug(raw: str = "") -> str:
+    """Return the bare Shopify store slug (no .myshopify.com suffix).
+
+    STORE env var may be set to 'mystore.myshopify.com' or just 'mystore'.
+    Shopify admin URLs require the slug form: admin.shopify.com/store/mystore/...
+    """
+    s = (raw or getattr(config, "STORE", "")).strip()
+    return s.removesuffix(".myshopify.com")
+
 # Carrier keyword → (display name, internal code)
 CARRIER_CODES: dict[str, tuple[str, str]] = {
     "fedex":        ("FedEx",          "C2"),
@@ -632,9 +642,8 @@ def _navigate_in_app(page: "Page", destination: str, store: str = "") -> bool:
             return True
 
         if nav["type"] == "shopify_url":
-            store_slug = store or getattr(config, "STORE", "")
             page.goto(
-                f"https://admin.shopify.com/store/{store_slug}/{nav['path']}",
+                f"https://admin.shopify.com/store/{_store_slug(store)}/{nav['path']}",
                 wait_until="domcontentloaded",
             )
             page.wait_for_timeout(500)
@@ -3390,9 +3399,9 @@ def verify_ac(
         VerificationReport with per-scenario results (even if all fail or stop_flag triggers)
     """
     if not app_url:
-        store = getattr(config, "STORE", "")
-        if store:
-            app_url = f"https://admin.shopify.com/store/{store}/apps/mcsl-qa"
+        _slug = _store_slug()
+        if _slug:
+            app_url = f"https://admin.shopify.com/store/{_slug}/apps/mcsl-qa"
 
     report = VerificationReport(card_name=card_name, app_url=app_url)
     start = time.time()
@@ -3459,9 +3468,9 @@ def verify_test_cases(
     if max_test_cases and max_test_cases < len(ranked):
         ranked = ranked[:max_test_cases]
     if not app_url:
-        store = getattr(config, "STORE", "")
-        if store:
-            app_url = f"https://admin.shopify.com/store/{store}/apps/mcsl-qa"
+        _slug = _store_slug()
+        if _slug:
+            app_url = f"https://admin.shopify.com/store/{_slug}/apps/mcsl-qa"
 
     report = VerificationReport(card_name=card_name, app_url=app_url)
     if not ranked:
