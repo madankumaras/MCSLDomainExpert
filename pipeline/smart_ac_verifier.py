@@ -1995,19 +1995,24 @@ def _preflight_open_order_summary(page: Any, result: ScenarioResult, order_id: s
     if not ok:
         return False
 
+    # MCSL Order Id filter expects the numeric part (without #); the link in the
+    # grid shows the full name including # so we keep both variants.
+    _filter_val = order_id.lstrip("#") if order_id.startswith("#") else order_id
+    _link_val   = order_id if order_id.startswith("#") else f"#{order_id}"
+
     ok, selector, source = _macro_fill(
         page,
-        value=order_id,
+        value=_filter_val,
         selectors=[
-            ("role_textbox_first", 'getByRole("textbox").last()', lambda: frame.get_by_role("textbox").last.fill(order_id)),
-            ("placeholder", 'getByPlaceholder("Value")', lambda: frame.get_by_placeholder("Value").fill(order_id)),
-            ("css_locator", 'input[type="text"]', lambda: frame.locator('input[type="text"]').last.fill(order_id)),
+            ("role_textbox_first", 'getByRole("textbox").last()', lambda: frame.get_by_role("textbox").last.fill(_filter_val)),
+            ("placeholder", 'getByPlaceholder("Value")', lambda: frame.get_by_placeholder("Value").fill(_filter_val)),
+            ("css_locator", 'input[type="text"]', lambda: frame.locator('input[type="text"]').last.fill(_filter_val)),
         ],
     )
     _record_macro_step(
         result,
         action="fill",
-        description=f"Preflight filled Order Id filter with {order_id}",
+        description=f"Preflight filled Order Id filter with {_filter_val}",
         target="Order Id filter",
         selector=selector,
         locator_source=source or "macro_fill",
@@ -2018,17 +2023,22 @@ def _preflight_open_order_summary(page: Any, result: ScenarioResult, order_id: s
         return False
 
     try:
-        frame.locator('input[type="text"]').last.press("Escape")
+        frame.locator('input[type="text"]').last.press("Enter")
+    except Exception:
+        pass
+    try:
+        page.wait_for_timeout(1500)
     except Exception:
         pass
 
     ok, selector, source = _macro_click(
         page,
-        name=order_id,
+        name=_link_val,
         selectors=[
-            ("role_link_exact", f'getByRole("link", {{ name: "{order_id}" }})', lambda: frame.get_by_role("link", name=order_id, exact=True).first.click()),
-            ("text_exact", f'getByText("{order_id}", {{ exact: true }})', lambda: frame.get_by_text(order_id, exact=True).first.click()),
-            ("css_locator", '#all-order-table table tbody tr:first-child a', lambda: frame.locator('#all-order-table table tbody tr:first-child a').first.click()),
+            ("role_link_exact",  f'getByRole("link", {{ name: "{_link_val}" }})',  lambda: frame.get_by_role("link", name=_link_val, exact=True).first.click()),
+            ("text_exact",       f'getByText("{_link_val}", {{ exact: true }})',    lambda: frame.get_by_text(_link_val, exact=True).first.click()),
+            ("role_link_no_hash",f'getByRole("link", {{ name: "{_filter_val}" }})',lambda: frame.get_by_role("link", name=_filter_val, exact=True).first.click()),
+            ("css_first_row",    '#all-order-table table tbody tr:first-child a',   lambda: frame.locator('#all-order-table table tbody tr:first-child a').first.click()),
         ],
     )
     _record_macro_step(

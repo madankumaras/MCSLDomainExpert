@@ -115,9 +115,10 @@ def create_order(
     resp = requests.post(url, json=payload, headers=headers, timeout=30)
     resp.raise_for_status()
 
-    order_id = str(resp.json()["order"]["id"])
-    logger.info(f"Created Shopify order: {order_id}")
-    return order_id
+    order_data = resp.json()["order"]
+    order_name = str(order_data.get("name", order_data["id"]))
+    logger.info(f"Created Shopify order: {order_name}")
+    return order_name
 
 
 def _automation_root_env() -> Path:
