@@ -3494,6 +3494,75 @@ def verify_ac(
     return report
 
 
+def build_smart_context(card_name: str, tc_markdown: str = "") -> str:
+    """Query every KB source upfront for this card and return a single briefing string.
+
+    Called once before the browser opens so every scenario shares a pre-built
+    knowledge snapshot:
+      - Matching test cases + acceptance criteria from the TC sheet
+      - Relevant wiki feature / pattern docs
+      - KB articles for the feature area
+      - Automation page-object code for navigation / selectors
+      - Backend server code (storepepsaas) relevant to the feature
+
+    Returns a plain-text block injected as SMART KB CONTEXT into the agent
+    context for every scenario in the run.
+    """
+    query = f"{card_name} {tc_markdown[:400]}".strip()
+    parts: list[str] = []
+
+    _DOC_SOURCES = [
+        ("sheets",      f"{card_name} test cases acceptance criteria",  5, "Matching test cases from TC sheet"),
+        ("wiki",        f"{card_name} feature workflow",                4, "Wiki: feature docs & patterns"),
+        ("kb_articles", f"{card_name} expected behaviour",              3, "KB: product behaviour notes"),
+    ]
+    _CODE_SOURCES = [
+        ("automation",          f"{card_name} navigation selector page object", 5, "Automation: page objects & selectors"),
+        ("storepepsaas_server", f"{card_name} shipping label carrier",          3, "Backend: server-side logic"),
+    ]
+
+    try:
+        from rag.vectorstore import search_filtered
+        for src_type, q, k, label in _DOC_SOURCES:
+            try:
+                docs = search_filtered(q, k=k, source_type=src_type)
+                if docs:
+                    snippet = "\n\n".join(
+                        f"• {d.page_content[:300]}" for d in docs
+                    )
+                    parts.append(f"### {label}\n{snippet}")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    try:
+        from rag.code_indexer import search_code
+        for src_type, q, k, label in _CODE_SOURCES:
+            try:
+                docs = search_code(q, k=k, source_type=src_type)
+                if docs:
+                    snippet = "\n---\n".join(
+                        f"[{d.metadata.get('file_path','').split('/')[-1]}]\n{d.page_content[:360]}"
+                        for d in docs
+                    )
+                    parts.append(f"### {label}\n{snippet}")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    if not parts:
+        return ""
+
+    header = (
+        f"=== SMART KB CONTEXT for: {card_name} ===\n"
+        "Pre-fetched from wiki, TC sheet, KB articles, automation repo, and server code.\n"
+        "Use this context to guide navigation, selectors, expected behaviour, and pass/fail criteria.\n\n"
+    )
+    return header + "\n\n".join(parts)
+
+
 def verify_test_cases(
     test_cases_markdown: str,
     card_name: str = "",
@@ -3503,6 +3572,7 @@ def verify_test_cases(
     progress_cb: "Callable[[int, str, int, str], None] | None" = None,
     qa_answers: "dict[str, str] | None" = None,
     max_test_cases: "int | None" = None,
+    smart_baseline_ctx: str = "",
 ) -> VerificationReport:
     """Verify reviewed test cases one-by-one, preserving full TC context."""
     ranked = rank_test_cases_for_execution(test_cases_markdown)
@@ -3538,6 +3608,7 @@ def verify_test_cases(
         progress_cb=progress_cb,
         qa_answers=qa_answers,
         claude=claude,
+        smart_baseline_ctx=smart_baseline_ctx,
     )
     return report
 
@@ -3589,6 +3660,7 @@ def _run_scenario_verification(
     progress_cb: "Callable[[int, str, int, str], None] | None",
     qa_answers: "dict[str, str] | None",
     claude: "ChatAnthropic",
+    smart_baseline_ctx: str = "",
 ) -> None:
     """Shared browser-runner for AC scenarios and parsed test cases."""
     start = time.time()
@@ -3622,6 +3694,9 @@ def _run_scenario_verification(
             try:
                 expert_insight = _ask_domain_expert(execution_text, card_name, claude)
                 code_ctx = _code_context(execution_text, card_name)
+                # Prepend card-level smart KB briefing if this is a smart run
+                if smart_baseline_ctx:
+                    code_ctx = f"{smart_baseline_ctx}\n\n{code_ctx}" if code_ctx else smart_baseline_ctx
                 _carrier_name, _ = _detect_carrier(execution_text)
                 expectation = build_request_expectations(
                     scenario=execution_text,

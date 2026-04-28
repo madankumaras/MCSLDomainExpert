@@ -3953,7 +3953,7 @@ def main() -> None:
                         else:
                             st.warning("TC-based verification requires generated test cases. Generate them in Step 3 first, then return here.")
 
-                        _btn_col, _stop_col = st.columns([3, 1])
+                        _btn_col, _smart_col, _stop_col = st.columns([3, 3, 1])
                         with _btn_col:
                             _existing_report = st.session_state.get(_sav_report_key)
                             run_clicked = st.button(
@@ -3961,6 +3961,13 @@ def main() -> None:
                                 key=f"run_sav_{card.id}",
                                 disabled=_is_running or not url_val or not _ranked_tcs,
                                 type="primary",
+                            )
+                        with _smart_col:
+                            run_smart_clicked = st.button(
+                                "🚀 Run Smart",
+                                key=f"run_smart_{card.id}",
+                                disabled=_is_running or not url_val or not _ranked_tcs,
+                                help="Queries wiki, TC sheet, KB articles, and automation repo before running — gives the agent full knowledge context for every scenario.",
                             )
                         with _stop_col:
                             stop_clicked = st.button(
@@ -3977,6 +3984,17 @@ def main() -> None:
                             _ev = st.session_state.get(_sav_stop_event_key)
                             if _ev:
                                 _ev.set()
+
+                        # Build smart KB context when Run Smart is clicked (before thread)
+                        _smart_ctx_key = f"sav_smart_ctx_{card.id}"
+                        if run_smart_clicked and url_val and not _is_running and _ranked_tcs:
+                            from pipeline.smart_ac_verifier import build_smart_context as _build_smart_ctx
+                            with st.spinner("🔍 Querying knowledge base (wiki, TC sheet, automation repo)…"):
+                                _smart_ctx = _build_smart_ctx(card.name, _tc_for_agent)
+                            st.session_state[_smart_ctx_key] = _smart_ctx
+                            _src_count = _smart_ctx.count("###")
+                            st.info(f"✅ Smart context built — {_src_count} knowledge source(s) loaded. Starting run…")
+                            run_clicked = True   # reuse the same thread path below
 
                         if run_clicked and url_val and not _is_running and _ranked_tcs:
                             import threading as _threading
@@ -3999,6 +4017,7 @@ def main() -> None:
                                 _sek=_sav_stop_event_key,
                                 _pk=_sav_prog_key,
                                 _repk=_sav_report_key,
+                                _smart_ctx=st.session_state.get(_smart_ctx_key, ""),
                             ):
                                 try:
                                     def _prog_cb(sc_idx, sc_title, step_num, step_desc):
@@ -4028,6 +4047,7 @@ def main() -> None:
                                             progress_cb=_prog_cb,
                                             qa_answers=_qa_answers,
                                             max_test_cases=_max,
+                                            smart_baseline_ctx=_smart_ctx,
                                         )
                                     st.session_state[_repk] = report
                                     st.session_state[_rk] = {"done": True, "report": report, "error": None}
