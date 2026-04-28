@@ -558,6 +558,19 @@ def _infer_setup_requirements(scenario: str, carrier_name: str, app_base: str = 
     if "bulk" in lower or "batch" in lower:
         order_action = "create_bulk"
 
+    if any(kw in lower for kw in ("multiple package", "multi package", "multi-package",
+                                   "cleanup button", "clean up button", "cleanup", "clean-up",
+                                   "failed package", "package fail", "remove package")):
+        _add_nav("orders")
+        _add_look(
+            "Cleanup button appears on the failed package row in the Order Summary",
+            "Cleanup button is visible after a package fails label generation",
+            "Label Summary table shows a FAILED or ERROR status row",
+        )
+        _add_api("/label", "/rates")
+        if order_action == "none":
+            order_action = "create_new_multi_package"
+
     if "cancel label" in lower or "return label" in lower or "download document" in lower:
         order_action = "existing_fulfilled"
 
@@ -727,6 +740,24 @@ To verify fulfillment status and tracking number in Shopify:
    → Label Batch page opens (same as Bulk Labels)
 6. Wait for SUCCESS status in batch grid
 7. Click "Mark as Fulfilled"
+
+### Multi-Package Order Flow (order has 2+ line items / packages)
+An order with multiple distinct products is automatically split into multiple
+packages by MCSL. The flow after creating the order is:
+1. Click "ORDERS" tab → All Orders grid
+2. Add filter: Order Id → type order ID → press Escape
+3. Click the order link → Order Summary page opens
+4. Click "Prepare Shipment" if visible (retry up to 3×)
+5. Click "Generate Label" → wait for label generation to complete
+   - Each package row in the Label Summary table shows its own status cell
+   - A package that fails label generation shows status = "FAILED" or "ERROR"
+6. After generation: check the Label Summary table for a FAILED package row
+7. On a FAILED package row: look for a "Cleanup" button (or "Clean up" / "Remove")
+   - Locator to try: appFrame.getByRole('button', { name: /cleanup/i })
+   - Also check: appFrame.locator('button[title*="Clean"], button[title*="cleanup"]')
+   - Also check: any button near the FAILED status cell in the Label Summary table
+8. Verify the Cleanup button is visible and clickable — that is the assertion for
+   "cleanup button missing in new UI" scenarios.
 
 ### Return Label Flow (LABEL-04)
 ⚠️ REQUIRES an already-FULFILLED order. Use order_action: existing_fulfilled in plan.
@@ -3228,24 +3259,34 @@ def _verify_scenario(
     order_action = plan_data.get("order_action", "")
     carrier_code = plan_data.get("carrier_code", "")
 
-    if order_action in ("create_new", "create_bulk") and carrier_code:
+    if order_action in ("create_new", "create_bulk", "create_new_multi_package"):
         try:
             from pipeline.order_creator import (
-                create_order, create_bulk_orders, get_carrier_env_for_code
+                create_order, create_bulk_orders, create_order_multi_package,
+                get_carrier_env_for_code,
             )
-            env_path = get_carrier_env_for_code(carrier_code)
+            env_path = None
+            if carrier_code:
+                try:
+                    env_path = get_carrier_env_for_code(carrier_code)
+                except Exception:
+                    env_path = None  # will fall back to automation root .env
 
             use_dangerous = bool(plan_data.get("dangerous_products"))
             if order_action == "create_new":
-                order_id = create_order(env_path, use_dangerous_products=use_dangerous)
-                logger.info(f"Created order for scenario: {order_id}")
+                if env_path:
+                    order_id = create_order(env_path, use_dangerous_products=use_dangerous)
+                    logger.info(f"Created order for scenario: {order_id}")
+            elif order_action == "create_new_multi_package":
+                order_id = create_order_multi_package(env_path, num_packages=2)
+                logger.info(f"Created multi-package order for scenario: {order_id}")
             elif order_action == "create_bulk":
-                order_ids = create_bulk_orders(env_path, count=3, use_dangerous_products=use_dangerous)
-                order_id = order_ids[0] if order_ids else None
-                logger.info(f"Created bulk orders: {order_ids}")
+                if env_path:
+                    order_ids = create_bulk_orders(env_path, count=3, use_dangerous_products=use_dangerous)
+                    order_id = order_ids[0] if order_ids else None
+                    logger.info(f"Created bulk orders: {order_ids}")
 
             if order_id:
-                # Inject order ID into scenario context so Claude can use it
                 ctx = f"TEST ORDER ID: {order_id}\n\n{ctx}"
         except Exception as e:
             logger.warning(f"Order creation failed for {order_action}/{carrier_code}: {e}")

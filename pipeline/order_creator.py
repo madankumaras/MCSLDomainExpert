@@ -53,24 +53,27 @@ def _default_address() -> dict[str, Any]:
     }
 
 
-def _build_line_items(env_data: dict[str, str], use_dangerous: bool = False) -> list[dict]:
-    """Build Shopify line_items from carrier-env product JSON."""
+def _build_line_items(
+    env_data: dict[str, str],
+    use_dangerous: bool = False,
+    product_count: int = 1,
+) -> list[dict]:
+    """Build Shopify line_items from carrier-env product JSON.
+
+    product_count > 1 creates an order with multiple distinct products so
+    that MCSL auto-splits it into multiple packages.
+    """
     key = "DANGEROUS_PRODUCTS_JSON" if use_dangerous else "SIMPLE_PRODUCTS_JSON"
     raw = env_data.get(key, "")
     if not raw:
-        # Fallback: use SIMPLE_PRODUCTS_JSON
         raw = env_data.get("SIMPLE_PRODUCTS_JSON", "[]")
 
     products = json.loads(raw)
     if not products:
         raise ValueError(f"No products found in carrier-env {key}")
 
-    # Use first product only for single orders
-    product = products[0]
-    return [{
-        "variant_id": product["variant_id"],
-        "quantity": 1,
-    }]
+    chosen = products[:max(1, product_count)]
+    return [{"variant_id": p["variant_id"], "quantity": 1} for p in chosen]
 
 
 def create_order(
@@ -90,7 +93,7 @@ def create_order(
     token = env.get("SHOPIFY_ACCESS_TOKEN") or config.SHOPIFY_ACCESS_TOKEN
     version = env.get("SHOPIFY_API_VERSION", "2023-01")
 
-    line_items = _build_line_items(env, use_dangerous=use_dangerous_products)
+    line_items = _build_line_items(env, use_dangerous=use_dangerous_products, product_count=1)
     address = address_override or _default_address()
 
     url = f"https://{store}.myshopify.com/admin/api/{version}/orders.json"
@@ -115,6 +118,62 @@ def create_order(
     order_id = str(resp.json()["order"]["id"])
     logger.info(f"Created Shopify order: {order_id}")
     return order_id
+
+
+def _automation_root_env() -> Path:
+    """Return the root .env path for the mcsl-test-automation repo."""
+    return Path(config.MCSL_AUTOMATION_REPO_PATH) / ".env"
+
+
+def create_order_multi_package(
+    carrier_env_path: str | Path | None = None,
+    num_packages: int = 2,
+    address_override: dict | None = None,
+) -> str:
+    """Create a single Shopify order with multiple line items so MCSL splits it
+    into multiple packages (one per distinct product).
+
+    Falls back to the automation repo root .env when no carrier-specific env
+    is available (e.g. carrier-envs/ directory is absent).
+
+    Returns the Shopify order name (e.g. '#3768') as a string.
+    """
+    # Prefer carrier env, fall back to automation root .env
+    env_path = Path(carrier_env_path) if carrier_env_path else None
+    if not env_path or not env_path.exists():
+        env_path = _automation_root_env()
+    env = _read_carrier_env(env_path)
+
+    store = env.get("SHOPIFY_STORE_NAME", "mcsl-automation")
+    token = env.get("SHOPIFY_ACCESS_TOKEN") or config.SHOPIFY_ACCESS_TOKEN
+    version = env.get("SHOPIFY_API_VERSION", "2023-01")
+
+    line_items = _build_line_items(env, use_dangerous=False, product_count=max(2, num_packages))
+    address = address_override or _default_address()
+
+    url = f"https://{store}.myshopify.com/admin/api/{version}/orders.json"
+    payload = {
+        "order": {
+            "line_items": line_items,
+            "shipping_address": address,
+            "billing_address": address,
+            "financial_status": "paid",
+            "send_receipt": False,
+            "send_fulfillment_receipt": False,
+        }
+    }
+    headers = {
+        "X-Shopify-Access-Token": token,
+        "Content-Type": "application/json",
+    }
+
+    resp = requests.post(url, json=payload, headers=headers, timeout=30)
+    resp.raise_for_status()
+
+    order_data = resp.json()["order"]
+    order_name = str(order_data.get("name", order_data["id"]))
+    logger.info("Created multi-package order %s with %d line items", order_name, len(line_items))
+    return order_name
 
 
 def create_bulk_orders(
