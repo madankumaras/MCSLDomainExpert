@@ -395,7 +395,8 @@ def get_default_store_slug(*texts: str) -> str:
         except Exception:
             pass
 
-    return (getattr(config, "STORE", "") or "").strip()
+    raw = (getattr(config, "STORE", "") or "").strip()
+    return raw.removesuffix(".myshopify.com")
 
 
 def get_default_app_url(*texts: str) -> str:
