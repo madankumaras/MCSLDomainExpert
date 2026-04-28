@@ -1183,10 +1183,13 @@ def _init_state() -> None:
         "dd_checked":      {},
         "dd_select_all":   False,
         # Phase 7 — Release QA tab
-        "rqa_list_name":   "",
-        "rqa_board_id":    "",
-        "rqa_board_name":  "",
-        "release_analysis": None,
+        "rqa_list_name":        "",
+        "rqa_board_id":         "",
+        "rqa_board_name":       "",
+        "release_analysis":     None,
+        "rqa_preview_cards":    [],   # lightweight card list from selected list (names only, no validation)
+        "rqa_preview_list_id":  "",   # list id used for the last preview fetch
+
         # Phase 7b — Handoff Docs tab
         "hd_cards":        [],
         "hd_list_name":    "",
@@ -2559,12 +2562,73 @@ def main() -> None:
                     st.markdown("<br>", unsafe_allow_html=True)
                     load_clicked = st.button("Load Cards", type="primary", key="rqa_load_btn")
 
+                # ── Card subset selector ──────────────────────────────────
+                # Auto-fetch card names from the selected list so the user can
+                # pick a subset before clicking Load Cards.
+                _sel_list_id = list_options.get(selected_list_name, "") if list_options else ""
+                _preview_list_id = st.session_state.get("rqa_preview_list_id", "")
+                if _sel_list_id and trello and _sel_list_id != _preview_list_id:
+                    with st.spinner(f"Fetching card names from '{selected_list_name}'…"):
+                        try:
+                            _fetched = _dedupe_cards(trello.get_cards_in_list(_sel_list_id))
+                            st.session_state["rqa_preview_cards"] = _fetched
+                            st.session_state["rqa_preview_list_id"] = _sel_list_id
+                            # Reset multiselect when list changes
+                            if "rqa_card_multiselect" in st.session_state:
+                                del st.session_state["rqa_card_multiselect"]
+                        except Exception:
+                            st.session_state["rqa_preview_cards"] = []
+
+                _preview_cards = st.session_state.get("rqa_preview_cards", [])
+                if _preview_cards:
+                    def _card_option_label(c: object) -> str:
+                        _lbls = getattr(c, "labels", None) or []
+                        return f"{c.name}  [{', '.join(_lbls)}]" if _lbls else c.name  # type: ignore[union-attr]
+
+                    _all_option_labels = [_card_option_label(c) for c in _preview_cards]
+                    _label_to_card_id  = {_card_option_label(c): c.id for c in _preview_cards}  # type: ignore[union-attr]
+
+                    # Select all / Clear all helpers
+                    _c_all, _c_clr, _c_cnt = st.columns([1, 1, 4])
+                    with _c_all:
+                        if st.button("Select all", key="rqa_sel_all_btn", use_container_width=True):
+                            st.session_state["rqa_card_multiselect"] = _all_option_labels
+                            st.rerun()
+                    with _c_clr:
+                        if st.button("Clear all", key="rqa_clr_all_btn", use_container_width=True):
+                            st.session_state["rqa_card_multiselect"] = []
+                            st.rerun()
+                    with _c_cnt:
+                        _cur_ms = st.session_state.get("rqa_card_multiselect") or []
+                        _n_cur  = len(_cur_ms) if _cur_ms else len(_preview_cards)
+                        if _cur_ms:
+                            st.caption(f"**{len(_cur_ms)} of {len(_preview_cards)} cards selected** — Load Cards will load only these")
+                        else:
+                            st.caption(f"**All {len(_preview_cards)} cards** — select a subset or leave empty to load all")
+
+                    st.multiselect(
+                        "Select cards to load",
+                        options=_all_option_labels,
+                        key="rqa_card_multiselect",
+                        placeholder="Leave empty to load all cards in this list…",
+                        label_visibility="collapsed",
+                    )
+
                 if load_clicked and selected_list_name and list_options:
                     selected_list_id = list_options[selected_list_name]
                     with st.spinner(f"Loading cards from '{selected_list_name}'…"):
                         try:
                             _previous_cards = st.session_state.get("rqa_cards", []) or []
-                            cards = _dedupe_cards(trello.get_cards_in_list(selected_list_id))
+                            _all_fetched = _dedupe_cards(trello.get_cards_in_list(selected_list_id))
+
+                            # Apply subset if user selected specific cards
+                            _ms_selection = st.session_state.get("rqa_card_multiselect") or []
+                            if _ms_selection:
+                                _prev_label_map = {_card_option_label(c): c.id for c in st.session_state.get("rqa_preview_cards", [])}
+                                _wanted_ids     = {_prev_label_map[lbl] for lbl in _ms_selection if lbl in _prev_label_map}
+                                cards = [c for c in _all_fetched if c.id in _wanted_ids]
+                            else:
+                                cards = _all_fetched
                             _reset_card_ids = list({
                                 *(getattr(c, "id", "") for c in _previous_cards),
                                 *(getattr(c, "id", "") for c in cards),
@@ -2584,8 +2648,13 @@ def main() -> None:
 
                             if release_stage == "validate_ac" and cards:
                                 _release_name = st.session_state["rqa_release"]
+                                _subset_note = (
+                                    f" ({len(cards)} of {len(_all_fetched)} selected)"
+                                    if _ms_selection and len(cards) < len(_all_fetched)
+                                    else ""
+                                )
                                 st.info(
-                                    f"Loaded {len(cards)} cards from **{selected_list_name}** — running Domain Expert validation…"
+                                    f"Loaded {len(cards)} cards from **{selected_list_name}**{_subset_note} — running Domain Expert validation…"
                                 )
                                 _progress = st.progress(0)
                                 _cards_by_id = {getattr(_card, "id", ""): _card for _card in cards}

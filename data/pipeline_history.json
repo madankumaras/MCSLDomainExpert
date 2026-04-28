@@ -1,6 +1,6 @@
 {
   "69e7ad575b96fece4a86bdb9": {
-    "card_name": "From SL: ZI-021 \u2014 Enhancement: minimum customs value floor [#369144]",
+    "card_name": "From SL: ZI-021 — Enhancement: minimum customs value floor [#369144]",
     "card_url": "https://trello.com/c/mMarGJPS/4227-from-sl-zi-021-enhancement-minimum-customs-value-floor-369144",
     "release": "2.0",
     "ac_generated_at": "2026-04-22T10:37:26",
@@ -15,5 +15,102 @@
     "release": "Ashok QA MCSL AI TEST",
     "ac_updated_at": "2026-04-21T21:36:39",
     "ac_saved_at": "2026-04-21T21:36:49"
+  },
+  "69e723ee4d043cc2951ffdf9": {
+    "card_name": "From SL: ZI-058 — eParcel bulk label generation delay (8+ sec consistently) [#380339]",
+    "card_url": "https://trello.com/c/WADXzgnk/4217-from-sl-zi-058-eparcel-bulk-label-generation-delay-8-sec-consistently-380339",
+    "release": "MCSL 378",
+    "ac_generated_at": "2026-04-24T09:06:39",
+    "ac_validated_at": "2026-04-24T09:06:39",
+    "ac_validation_status": "NEEDS_REVIEW",
+    "ac_validation_summary": "The card is well-researched and the ACs are largely sound, but several critical gaps exist: AC3 is truncated, the bulk-path parallelization blast-radius regression coverage is under-specified, the dynamic polling replacement contract is not defined in any AC, and the 'no cross-carrier regression' expectation is called out in research but absent from the ACs.",
+    "ac_preview": "## Pre-Writing Research Summary\n\n**Card type:** bug_fix_or_customer_issue\n**Carrier:** Australia Post eParcel (legacy API — confirmed NOT MyPost Business)\n**Affected area:** Label generation — single and bulk — ORDERS tab\n**Root cause confirmed (HIGH confidence):**\n1. Hardcoded 5-second polling delay in `helperFunctions.js:206` before label status check\n2. Polling retries up to 3× at 5s each = up to 15s polling alone per label\n3. Four sequential API calls per label (createShipment → createLabel → getLabel → getShipment)\n4. Bulk loop is sequential `for`, not concurrent\n\n**Merchant impact:** SLA breached 18 days; 50-label batch = 30+ min wait; goal ≤3s/label single, ≤30s for 10 labels bulk\n\n**Toggle/prerequisite:** eParcel carrier must be configured and active under App Settings → Carriers; automation must be enabled globally if automation rules are in scope; cross-carrier regression risk flag applies to bulk path\n\n**Blast radius:** Parallelization touches the shared bulk action path — cross-carrier regression risk is confirmed and must be covered\n\n**What I will NOT write ACs for (no confirmed MCSL UI surface):**\n- \"AuPost API response: X.Xs\" debug section on order detail page\n- Warn",
+    "ac_saved_at": "2026-04-22T11:32:53"
+  },
+  "69e618657bd6f64a2a5569d0": {
+    "card_name": "From SL: ZI-065 — DHL Export Declaration Surcharge incorrectly applied for Japan shipments [#381261]",
+    "card_url": "https://trello.com/c/9E8R5MCZ/4185-from-sl-zi-065-dhl-export-declaration-surcharge-incorrectly-applied-for-japan-shipments-381261",
+    "release": "MCSL 378",
+    "ac_generated_at": "2026-04-24T10:01:41",
+    "ac_validated_at": "2026-04-24T10:01:41",
+    "ac_validation_status": "NEEDS_REVIEW",
+    "ac_validation_summary": "The card is well-researched and the core bug fix is clearly scoped, but AC4 is truncated, the fix mechanism described in the Pre-AC Research Summary conflicts with the AI Code Analysis section, and several edge cases lack explicit AC coverage.",
+    "ac_preview": "## Pre-AC Research Summary\n\n**Card type:** Bug fix / customer issue\n**Carrier:** DHL Express (international)\n**Root cause:** `dhlShipmentHelper.js` applies the Export Declaration Surcharge (`WO` special service, JPY 1800) to all high-value shipments globally without checking origin country. Japan-origin shipments must be exempt.\n**Fix mechanism:** `exportDeclarationExcludedCountries` array in `config.json` — Japan (JP) added to that array; no code change needed beyond config. No new UI toggle required.\n**Prerequisite toggle:** Sequence number for priority (automation rule ordering) — not directly gating this bug fix, but automation rules may drive carrier/service selection for test orders.\n**Key constraint from dev comment:** Excluded countries are driven by `config.json → exportDeclarationExcludedCountries`; adding JP to that array is the deployed fix. India and other non-excluded origins must retain surcharge behavior.\n**Blast radius:** DHL Express international only, declared value > 25,000 (config threshold), origin country check. Domestic DHL and all other carriers unaffected.\n**Customer signal:** Ticket #381261, pain 8/10, SLA breached — Japan merchant seeing inflated DHL rat",
+    "ac_saved_at": "2026-04-22T11:45:15"
+  },
+  "69e61866cf764888bb90e0b7": {
+    "card_name": "From SL: ZI-063 — Custom declaration statement on FedEx commercial invoice not available [#380784]",
+    "card_url": "https://trello.com/c/tHOnnmuh/4186-from-sl-zi-063-custom-declaration-statement-on-fedex-commercial-invoice-not-available-380784",
+    "release": "MCSL 378",
+    "ac_generated_at": "2026-04-24T10:20:09",
+    "ac_validated_at": "2026-04-24T10:20:09",
+    "ac_validation_status": "NEEDS_REVIEW",
+    "ac_validation_summary": "The card is well-researched and the fix is clearly scoped, but several AC gaps, one truncated AC, and a few missing edge-case constraints need resolution before test case generation proceeds.",
+    "ac_preview": "## Pre-Write Research Summary\n\n**Card type:** bug_fix_or_customer_issue\n**Carrier:** FedEx REST (C2) — international/customs flow only\n**Root cause:** FedEx REST API deprecated `CustomDeclaration`; replacement is `declarationStatement` inside `commercialInvoice` object within `customsClearanceDetail`\n**Fix scope:** Single conditional field mapping in `requestBuilder.js` + new UI text input in `fedexRest.js` + schema field in `carriers.js`\n**Character limit:** 554 characters (FedEx REST API constraint)\n**Field behaviour:** Optional — omitted entirely from payload when blank (conditional spread pattern)\n**AC6 flag from dev comment:** FedEx controls the printed declaration on the PDF from their side; end-to-end PDF verification is not a reliable QA gate\n**Automation prerequisite:** Sequence number / rule priority applies when automation triggers label generation\n**Regression surface:** FedEx SOAP unaffected, domestic FedEx unaffected, all other carriers unaffected\n**Navigation paths in scope:** App Settings → Carriers → FedEx REST → Edit; ORDERS tab → label generation; ORDERS tab → Request Log\n\n---\n\n### Acceptance Criteria\n\n- **AC1:** Given the merchant navigates to App Settings → Car",
+    "ac_saved_at": "2026-04-22T11:55:35"
+  },
+  "69e61868c0c992e6f51cf928": {
+    "card_name": "From SL: ZI-034 — Discounted price not reflected on commercial invoice [#374022]",
+    "card_url": "https://trello.com/c/s1w3iq7e/4188-from-sl-zi-034-discounted-price-not-reflected-on-commercial-invoice-374022",
+    "release": "MCSL 378",
+    "ac_generated_at": "2026-04-24T11:33:01",
+    "ac_validated_at": "2026-04-24T11:33:01",
+    "ac_validation_status": "NEEDS_REVIEW",
+    "ac_validation_summary": "The card is well-grounded in code evidence and carrier context, but several ACs are incomplete or truncated, key edge cases are unspecified, and the toggle placement and DHL parity requirements need explicit validation before test case generation.",
+    "ac_preview": "## Pre-AC Research Grounding\n\n**Card type:** `bug_fix_or_customer_issue`\n**Story:** ZI-034 — Discounted price not reflected on commercial invoice (Zendesk #374022)\n**Pain:** 8/10 | **SLA:** Breached 56 days overdue\n**Carriers affected:** FedEx (REST), DHL Express\n**Blast radius:** All international shipments with order-level or line-item discounts\n\n**Key facts established before writing ACs:**\n\n1. Shopify stores discount data in `discount_allocations` at the line-item level, not in the `price` field. The current builders (`requestBuilder.js:676` for FedEx, `dhlShipmentHelper.js:862` for DHL) read `price` only, so the declared customs value is inflated when discounts exist.\n2. The fix computes effective unit price as `price − (sum of discount_allocations / quantity)` per line item.\n3. A merchant-facing toggle (\"Use discounted price on commercial invoice\") is the intended delivery mechanism — this is the detected feature flag (`Sequence number for priority` maps to automation rule sequencing, but the primary toggle here is the discounted-price option on the commercial invoice settings).\n4. Customs compliance note from AI analysis: some jurisdictions require undiscounted declared valu"
+  },
+  "69e618672789c92c86b8db15": {
+    "card_name": "From SL: ZI-062 — Shipment type classification per order [#380339]",
+    "card_url": "https://trello.com/c/CIhn4HuZ/4187-from-sl-zi-062-shipment-type-classification-per-order-380339",
+    "release": "MCSL 378",
+    "ac_generated_at": "2026-04-24T11:11:59",
+    "ac_validated_at": "2026-04-24T11:11:59",
+    "ac_validation_status": "NEEDS_REVIEW",
+    "ac_validation_summary": "The card is well-structured and largely accurate, but several acceptance criteria are incomplete or ambiguous — most critically, AC4 covers only Australia Post while the KB confirms FedEx, UPS, DHL, and 6+ other carrier builders are in scope, and the backward-compatibility fallback rule (no saved shipmentType → use carrier-level reasonForExport) is stated in the pre-AC research but never formalised as its own AC.",
+    "ac_preview": "## Pre-AC Research Summary\n\n**Card type:** Bug fix / Feature gap (customer issue #380339)\n**Theme:** International & Customs\n**Root cause:** `shipmentType` (customs content classification / reason for export) is stored at carrier level only — no per-order override exists in the UI or data model\n**Customer pain:** 8/10 — SLA breached 18 days overdue\n**Scope:** Order Summary UI + Order model + all carrier request builders that emit customs data\n**Toggle/flag:** None detected — treat as always-on after deployment\n**Carrier scope:** Generic MCSL (Australia Post eParcel is the primary reporter; DHL Express, FedEx, UPS, and other international carriers share the same customs path)\n**Backward-compatibility risk:** Orders without a saved `shipmentType` must fall back to the carrier-level `reasonForExport` setting — this is the highest regression risk\n**Navigation path:** ORDERS tab → select order → Order Summary page\n\n---\n\n### Acceptance Criteria\n\n- **AC1 — Shipment Type dropdown is present on the Order Summary page:**\n  Given an order that has an international destination (ship-from and ship-to countries differ), when the merchant opens the Order Summary page in the ORDERS tab, then a **S"
+  },
+  "69e6186924217af3bb93c3bd": {
+    "card_name": "From SL: ZI-132 — Touchless SLGP auto-print regression [#384058]",
+    "card_url": "https://trello.com/c/mtuY8s5G/4189-from-sl-zi-132-touchless-slgp-auto-print-regression-384058",
+    "release": "MCSL 378",
+    "ac_generated_at": "2026-04-24T11:46:42",
+    "ac_validated_at": "2026-04-24T11:46:42",
+    "ac_validation_status": "NEEDS_REVIEW",
+    "ac_validation_summary": "The card is well-structured with a clear root cause and strong AC coverage for the happy path, but several gaps exist around negative/regression scenarios, multi-workstation verification, flag-restoration teardown, and the truncated AC3–AC9 content that must be completed before test case generation can proceed.",
+    "ac_preview": "## Pre-AC Research Grounding\n\n**Card type:** bug_fix_or_customer_issue\n**Theme:** Label & Document Quality — Touchless SLGP auto-print regression\n**Ticket:** #384058 | **Pain:** 10/10 | **SLA:** 72h\n**Merchant:** Reggie (account `ec7136eb-95e8-437b-a415-b61d2fc684e9`)\n**Carriers in scope:** UPS, FedEx, USPS (all three must be verified per wiki success criteria)\n\n**Root cause (AI analysis, HIGH confidence):**\n`isTouchlessPrintingEnabled` at L259 of `printSettingsHelperFunctions.js` gates the entire auto-print path. Regression is one of:\n- (a) `touchless.printing.enabled.after.store.createdAt.greater.than` cutoff date shifted, excluding this account\n- (b) `{accountUUID}.touchless.printing.disabled` flag inadvertently set\n- (c) Code regression in `PrintingCertificateService.js` trigger path\n\n**Feature flag prerequisite (mandatory before QA):**\n`isTouchlessPrintingEnabled` must return `true` for the affected account in LaunchDarkly before any UI-level AC can be verified. QA must confirm this with the developer before executing.\n\n**Fixed behavior (from wiki success criteria):**\nAfter SLGP completes → label auto-prints without any manual print action, across all workstations, for UPS, Fe"
+  },
+  "69e6187338d8b1114761d892": {
+    "card_name": "From SL: ZI-045 — BlueDart pickup token enhancement [#377574]",
+    "card_url": "https://trello.com/c/VuaZddp7/4197-from-sl-zi-045-bluedart-pickup-token-enhancement-377574",
+    "release": "MCSL 378",
+    "ac_generated_at": "2026-04-24T12:02:58",
+    "ac_validated_at": "2026-04-24T12:02:58",
+    "ac_validation_status": "NEEDS_REVIEW",
+    "ac_validation_summary": "The card is well-structured and technically grounded, but several ACs are truncated or missing, key edge cases from the code analysis are not covered in the ACs, and a few prerequisite/risk items need explicit confirmation before test generation can proceed safely.",
+    "ac_preview": "## Pre-Writing Research Summary\n\n**Card type:** Bug fix / customer issue (ZI-045, Ticket #377574)\n**Carrier:** Blue Dart (India domestic)\n**Area:** Carrier config → Pickup scheduling → Batch pickup token\n**Pain score:** 8/10 | SLA breached 34 days | Churn risk: explicit\n**Navigation paths in scope:** ORDERS tab (bulk actions), App Settings → Carriers → Add/Edit (BlueDart config)\n\n**Core broken behavior:** BlueDart pickup token is stored per-package on a single shipment. No batch pickup exists. Merchants cannot schedule one pickup for multiple orders, cannot see a shared token across orders, and receive an opaque \"in progress\" status when a pincode is non-serviceable.\n\n**Fixed behavior expected:**\n1. Bulk \"Schedule Pickup\" action on the Orders grid sends one BlueDart API call with all selected AWB numbers.\n2. A single pickup token is returned and persisted against every order in that batch.\n3. The pickup token is visible and filterable in the Orders grid.\n4. Non-serviceable pincodes surface a clear, named error and the remaining valid orders still proceed.\n5. An existing pickup can be modified (additional AWBs appended to the same token).\n\n**Toggle/flag prerequisites:** BlueDart int"
+  },
+  "69e618746ea5abc3a794fb33": {
+    "card_name": "From SL: ZI-031 — PostNord service updates for May 2026 [#373200]",
+    "card_url": "https://trello.com/c/wrq8DeiO/4198-from-sl-zi-031-postnord-service-updates-for-may-2026-373200",
+    "release": "MCSL 378",
+    "ac_generated_at": "2026-04-24T12:16:36",
+    "ac_validated_at": "2026-04-24T12:16:36",
+    "ac_validation_status": "NEEDS_REVIEW",
+    "ac_validation_summary": "The card is well-structured and largely aligned with KB evidence, but several ACs are incomplete or cut off, key prerequisite data (exact new/deprecated service code list) is unconfirmed, and a few edge cases around automation rules, country-of-origin fallback, and API version are not covered.",
+    "ac_preview": "## Pre-AC Research Grounding\n\n**Card type:** bug_fix_or_customer_issue\n**Carrier:** PostNord (Nordic markets)\n**Affected area:** carrier-config → serviceCodeMapper.js, postNordShipmentHelper.js, postNordHelperFunctions.js\n**Toggle/flag prerequisite:** Sequence number for priority (automation rule ordering)\n**Core broken behavior:** App silently uses stale/deprecated PostNord service codes after May 2026 restructuring; new services are invisible to merchants; old codes may be rejected by PostNord API\n**Fixed behavior:** Updated service codes appear in carrier config UI, deprecated codes are removed, label generation succeeds with new codes\n**Blast radius:** All PostNord customers (primarily Nordic markets); isolated to PostNord carrier\n**Navigation paths in scope:** App Settings → Carriers → Add/Edit (PostNord); ORDERS tab → label generation flow\n**Out of scope:** Mobile viewports; non-PostNord carriers\n\n---\n\n### Acceptance Criteria\n\n- **AC1:** Given a store with a PostNord carrier account configured, when the merchant navigates to **App Settings → Carriers → Add/Edit** for PostNord, then the service selector must display only the May 2026 active PostNord service codes and must not ",
+    "tc_published_at": "2026-04-24T13:30:11",
+    "test_cases": "# Test Cases: ZI-031 — PostNord Service Updates for May 2026\n\n---\n\n### TC-1: New May 2026 service codes appear in the PostNord service selector for each Nordic origin country\n**Type:** Positive\n**Priority:** High\n**Preconditions:**\n- PostNord carrier account is configured in **App Settings → Carriers** for each of the four Nordic origin countries: SE, DK, NO, FI\n- `serviceCodeMapper.js` has been updated with the May 2026 service codes for all four country keys\n- Merchant is logged into Shopify Admin with the MCSL app installed\n\n**Steps:**\nGiven a PostNord carrier account exists for origin country SE (Sweden)\nWhen the merchant navigates to **App Settings → Carriers → Edit** for the SE PostNord account and opens the service selector dropdown\nThen only the May 2026 active service codes valid for SE origin must be listed in the dropdown\n\nAnd the merchant repeats the same navigation for PostNord accounts with origin countries DK, NO, and FI respectively\nThen each country's service selector must display only the May 2026 service codes scoped to that specific country of origin, confirming the `serviceCodes[preferredCarrier.countryOfOrigin]` lookup in `postNordShipmentHelper.js:104` resolv",
+    "sheet_tab": "AI ",
+    "sheet_rows": 4
+  },
+  "69efbfdc45415f50cb62321b": {
+    "card_name": "From SL: ZI-357 — FedEx rate display option to exclude VAT for EU tax compliance [#385094]",
+    "card_url": "https://trello.com/c/PIEqO2BZ/4266-from-sl-zi-357-fedex-rate-display-option-to-exclude-vat-for-eu-tax-compliance-385094",
+    "release": "MCSL 378",
+    "ac_generated_at": "2026-04-28T09:14:44",
+    "ac_validated_at": "2026-04-28T09:14:44",
+    "ac_validation_status": "NEEDS_REVIEW",
+    "ac_validation_summary": "The card has a well-structured pre-AC research brief with correct carrier scoping and platform context, but it lacks formal Acceptance Criteria, a defined toggle/setting path, and several edge cases and verification surfaces needed before test cases can be generated safely.",
+    "ac_preview": "I'll work research-first before writing the ACs.\n\n---\n\n## Pre-AC Research Brief\n\n### Card Type\n`bug_fix_or_customer_issue` — ZI-357, Zendesk #385094\n\n### Raw Card Signal\n**FedEx rate display option to exclude VAT for EU tax compliance.**\n- Carrier scope: FedEx (DHL mentioned on card label but primary carrier code is C2 = FedEx)\n- Theme: Rate display / EU tax compliance\n- The issue is about how FedEx rates are **displayed** to merchants — specifically whether VAT is included or excluded in the rate shown in the MCSL app\n- The linked analysis file (`ZI-357-analysis-20260427200429.md`) is the primary source of truth for the broken vs. fixed behavior\n\n### Detected Toggle / Feature Flag\n- **Sequence number for priority** — referenced in automation rule settings (per-rule active/inactive toggle, sequence number for priority, group number for organization)\n- This is an automation-module toggle, not directly a rate-display toggle — but it signals that a **feature flag or store-level enablement** may gate the VAT exclusion option before QA can test it\n\n### Carrier/Platform Constraints (FedEx REST)\n- FedEx REST rate payload uses `requestedPackageLineItems`\n- For international/EU shipments, `"
   }
 }
