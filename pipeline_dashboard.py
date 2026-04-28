@@ -3972,7 +3972,7 @@ def main() -> None:
                             )
                         with _stop_col:
                             stop_clicked = st.button(
-                                "⏹ Stop",
+                                "Stop",
                                 key=f"stop_sav_{card.id}",
                                 disabled=not _is_running,
                             )
@@ -4023,7 +4023,7 @@ def main() -> None:
                                 )
                             with _cust_col_stop:
                                 _cust_stop_clicked = st.button(
-                                    "⏹ Stop",
+                                    "Stop",
                                     key=f"cust_stop_{card.id}",
                                     disabled=not _cust_is_running,
                                     help="Stop custom case run",
@@ -4062,8 +4062,16 @@ def main() -> None:
                                                 "text": f"[{sc_title}] Step {step_num}: {step_desc}",
                                             }
 
+                                        # Wrap free-form text in TC markdown so the parser
+                                        # finds exactly one scenario instead of returning empty.
+                                        import re as _re
+                                        _tc_text = (
+                                            _scenario
+                                            if _re.match(r"^#{2,3}\s+TC-\d+", _scenario)
+                                            else f"## TC-1: Custom Scenario\n\n{_scenario}"
+                                        )
                                         report = verify_test_cases(
-                                            test_cases_markdown=_scenario,
+                                            test_cases_markdown=_tc_text,
                                             card_name=_card_name,
                                             app_url=_url,
                                             stop_flag=lambda: _event.is_set() or st.session_state.get(_sk, False),
