@@ -3968,6 +3968,7 @@ def main() -> None:
                                 key=f"run_smart_{card.id}",
                                 disabled=_is_running or not url_val or not _ranked_tcs,
                                 help="Queries wiki, TC sheet, KB articles, and automation repo before running — gives the agent full knowledge context for every scenario.",
+                                type="primary",
                             )
                         with _stop_col:
                             stop_clicked = st.button(
@@ -4018,10 +4019,11 @@ def main() -> None:
                                     "⚙️ Write Automation",
                                     key=f"cust_auto_{card.id}",
                                     disabled=_cust_is_running or not _cust_text.strip(),
+                                    type="primary",
                                 )
                             with _cust_col_stop:
                                 _cust_stop_clicked = st.button(
-                                    "⏹",
+                                    "⏹ Stop",
                                     key=f"cust_stop_{card.id}",
                                     disabled=not _cust_is_running,
                                     help="Stop custom case run",
@@ -4066,6 +4068,7 @@ def main() -> None:
                                             app_url=_url,
                                             stop_flag=lambda: _event.is_set() or st.session_state.get(_sk, False),
                                             progress_cb=_cust_prog,
+                                            headless=False,
                                         )
                                         st.session_state[_repk] = report
                                         st.session_state[_rk] = {"done": True, "report": report, "error": None}
