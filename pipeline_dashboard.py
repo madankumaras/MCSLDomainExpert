@@ -2534,62 +2534,93 @@ def main() -> None:
                 with st.expander("🎯 Quick Custom Test", expanded=True):
                     st.caption("Run any scenario directly — no cards or workflow required.")
 
-                    # Use widget key == session-state key so Streamlit preserves value
-                    # across reruns even when the widget is disabled during a run.
-                    _qct_url = st.text_input(
-                        "App URL",
-                        key="qct_url",
-                        placeholder="https://admin.shopify.com/store/…/apps/mcsl-qa",
-                        disabled=_qct_is_running,
-                    )
-                    _qct_ctx_label = st.text_input(
-                        "Context label (optional — used as card name for AI reasoning)",
-                        key="qct_ctx_label",
-                        placeholder="e.g. ZI-067 Cleanup button, or leave blank",
-                        disabled=_qct_is_running,
-                    )
-                    _qct_scenario = st.text_area(
-                        "Scenario",
-                        key="qct_scenario",
-                        height=160,
-                        placeholder=(
-                            "TC-1: Verify Cleanup button appears for failed package\n"
-                            "Given I have a multi-package order\n"
-                            "When the label generation fails for one package\n"
-                            "Then a Cleanup button should be visible on that package row"
-                        ),
-                        disabled=_qct_is_running,
-                    )
+                    # Snapshot keys hold the last confirmed values so they survive
+                    # the st.rerun() that starts the run (disabled widgets can reset).
+                    _snap_url   = "_qct_snap_url"
+                    _snap_sc    = "_qct_snap_sc"
+                    _snap_lbl   = "_qct_snap_lbl"
+                    _snap_mode  = "_qct_snap_mode"
 
-                    _qct_order_mode = st.selectbox(
-                        "Order setup",
-                        options=["auto", "create_new", "create_new_multi_package", "none"],
-                        index=["auto", "create_new", "create_new_multi_package", "none"].index(
-                            st.session_state.get("qct_order_mode", "auto")
-                        ),
-                        key="qct_order_mode",
-                        help=(
-                            "auto = detect from scenario keywords  |  "
-                            "create_new = always create a fresh single-package order  |  "
-                            "create_new_multi_package = create order with 2+ packages (for Cleanup button scenarios)  |  "
-                            "none = use existing orders in the grid"
-                        ),
-                        disabled=_qct_is_running,
-                    )
+                    if _qct_is_running:
+                        # Show read-only values from snapshot so the user can see
+                        # what's running without the fields appearing blank.
+                        st.text_input("App URL", value=st.session_state.get(_snap_url, ""), disabled=True, key="qct_url_ro")
+                        st.text_input("Context label", value=st.session_state.get(_snap_lbl, ""), disabled=True, key="qct_lbl_ro")
+                        st.text_area("Scenario", value=st.session_state.get(_snap_sc, ""), height=160, disabled=True, key="qct_sc_ro")
+                        st.selectbox("Order setup", options=["auto", "create_new", "create_new_multi_package", "none"],
+                                     index=["auto", "create_new", "create_new_multi_package", "none"].index(
+                                         st.session_state.get(_snap_mode, "auto")),
+                                     disabled=True, key="qct_mode_ro")
+                        _url_val       = st.session_state.get(_snap_url, "")
+                        _ctx_label_val = st.session_state.get(_snap_lbl, "")
+                        _scenario_val  = st.session_state.get(_snap_sc, "")
+                        _order_mode    = st.session_state.get(_snap_mode, "auto")
+                    else:
+                        # Editable widgets — values live in session state under edit keys.
+                        _qct_url = st.text_input(
+                            "App URL",
+                            value=st.session_state.get("qct_url", _qct_default_url),
+                            key="qct_url_edit",
+                            placeholder="https://admin.shopify.com/store/…/apps/mcsl-qa",
+                        )
+                        st.session_state["qct_url"] = _qct_url
+
+                        _qct_ctx_label = st.text_input(
+                            "Context label (optional — used as card name for AI reasoning)",
+                            value=st.session_state.get("qct_ctx_label", ""),
+                            key="qct_lbl_edit",
+                            placeholder="e.g. ZI-067 Cleanup button, or leave blank",
+                        )
+                        st.session_state["qct_ctx_label"] = _qct_ctx_label
+
+                        _qct_scenario = st.text_area(
+                            "Scenario",
+                            value=st.session_state.get("qct_scenario", ""),
+                            key="qct_sc_edit",
+                            height=160,
+                            placeholder=(
+                                "TC-1: Verify Cleanup button appears for failed package\n"
+                                "Given I have a multi-package order\n"
+                                "When the label generation fails for one package\n"
+                                "Then a Cleanup button should be visible on that package row"
+                            ),
+                        )
+                        st.session_state["qct_scenario"] = _qct_scenario
+
+                        _qct_order_mode = st.selectbox(
+                            "Order setup",
+                            options=["auto", "create_new", "create_new_multi_package", "none"],
+                            index=["auto", "create_new", "create_new_multi_package", "none"].index(
+                                st.session_state.get("qct_order_mode", "auto")
+                            ),
+                            key="qct_mode_edit",
+                            help=(
+                                "auto = detect from scenario keywords  |  "
+                                "create_new = always create a fresh single-package order  |  "
+                                "create_new_multi_package = create order with 2+ packages (Cleanup button scenarios)  |  "
+                                "none = use existing orders in the grid"
+                            ),
+                        )
+                        st.session_state["qct_order_mode"] = _qct_order_mode
+
+                        _url_val       = (_qct_url or "").strip()
+                        _ctx_label_val = (_qct_ctx_label or "").strip()
+                        _scenario_val  = (_qct_scenario or "").strip()
+                        _order_mode    = _qct_order_mode
 
                     _qct_c1, _qct_c2, _qct_c3 = st.columns([3, 3, 2])
                     with _qct_c1:
                         _qct_run_clicked = st.button(
                             "▶ Run This Case",
                             key="qct_run_btn",
-                            disabled=_qct_is_running or not (_qct_scenario or "").strip() or not (_qct_url or "").strip(),
+                            disabled=_qct_is_running or not _scenario_val or not _url_val,
                             type="primary",
                         )
                     with _qct_c2:
                         _qct_auto_clicked = st.button(
                             "⚙️ Write Automation",
                             key="qct_auto_btn",
-                            disabled=_qct_is_running or not (_qct_scenario or "").strip(),
+                            disabled=_qct_is_running or not _scenario_val,
                             type="primary",
                         )
                     with _qct_c3:
@@ -2605,14 +2636,14 @@ def main() -> None:
                         if _qev:
                             _qev.set()
 
-                    _scenario_val  = (st.session_state.get("qct_scenario") or "").strip()
-                    _url_val       = (st.session_state.get("qct_url") or "").strip()
-                    _ctx_label_val = (st.session_state.get("qct_ctx_label") or "").strip()
-                    _order_mode    = st.session_state.get("qct_order_mode", "auto")
-
                     if _qct_run_clicked and _scenario_val and _url_val and not _qct_is_running:
                         import threading as _qct_th
                         _qct_stop_ev = _qct_th.Event()
+                        # Snapshot values now so they're visible while running
+                        st.session_state[_snap_url]       = _url_val
+                        st.session_state[_snap_sc]        = _scenario_val
+                        st.session_state[_snap_lbl]       = _ctx_label_val
+                        st.session_state[_snap_mode]      = _order_mode
                         st.session_state[_qct_run_key]    = True
                         st.session_state[_qct_stop_key]   = False
                         st.session_state[_qct_sev_key]    = _qct_stop_ev

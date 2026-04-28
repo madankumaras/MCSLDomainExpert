@@ -3273,10 +3273,19 @@ def _verify_scenario(
                     env_path = None  # will fall back to automation root .env
 
             use_dangerous = bool(plan_data.get("dangerous_products"))
+            # Fall back to automation root .env when no carrier-specific env was found.
+            if env_path is None:
+                from pipeline.order_creator import _automation_root_env as _arc
+                _root_env = _arc()
+                if _root_env.exists():
+                    env_path = _root_env
+
             if order_action == "create_new":
                 if env_path:
                     order_id = create_order(env_path, use_dangerous_products=use_dangerous)
                     logger.info(f"Created order for scenario: {order_id}")
+                else:
+                    logger.warning("create_new requested but no env_path available — skipping order creation")
             elif order_action == "create_new_multi_package":
                 order_id = create_order_multi_package(env_path, num_packages=2)
                 logger.info(f"Created multi-package order for scenario: {order_id}")
