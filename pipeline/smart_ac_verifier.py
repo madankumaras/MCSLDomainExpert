@@ -3544,6 +3544,17 @@ def _run_scenario_verification(
     start = time.time()
     pw, browser, ctx, page = _launch_browser(headless=headless)
     try:
+        # Navigate to the app URL so the Shopify embedded-app iframe loads before
+        # any scenario starts. Without this the page is blank and _navigate_in_app
+        # cannot find the iframe.
+        if app_url:
+            try:
+                page.goto(app_url, wait_until="domcontentloaded", timeout=30_000)
+                page.wait_for_timeout(2000)
+                logger.info("Navigated to app URL: %s", app_url)
+            except Exception as _nav_err:
+                logger.warning("Initial navigation to %s failed: %s", app_url, _nav_err)
+
         total = len(scenario_entries)
         for idx, item in enumerate(scenario_entries):
             execution_text = item.get("execution_text", "").strip()
