@@ -395,11 +395,26 @@ def get_default_store_slug(*texts: str) -> str:
         except Exception:
             pass
 
+    # Fall back to the automation repo .env (SHOPIFY_STORE_NAME there is authoritative)
+    _auto_env = Path(getattr(config, "MCSL_AUTOMATION_REPO_PATH", "") or "").parent / ".env"
+    if not _auto_env.exists():
+        _auto_env = Path(getattr(config, "MCSL_AUTOMATION_REPO_PATH", "") or "") / ".env"
+    store = _read_env_value(_auto_env, "SHOPIFY_STORE_NAME") if _auto_env.exists() else ""
+    if store:
+        return store.removesuffix(".myshopify.com")
+
     raw = (getattr(config, "STORE", "") or "").strip()
     return raw.removesuffix(".myshopify.com")
 
 
 def get_default_app_url(*texts: str) -> str:
+    # APPURL in the automation repo .env is the most reliable source
+    _auto_env = Path(getattr(config, "MCSL_AUTOMATION_REPO_PATH", "") or "") / ".env"
+    if _auto_env.exists():
+        url = _read_env_value(_auto_env, "APPURL")
+        if url:
+            return url.rstrip("/")
+
     store = get_default_store_slug(*texts)
     if not store:
         return ""
