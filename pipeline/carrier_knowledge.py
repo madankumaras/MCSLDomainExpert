@@ -320,13 +320,14 @@ def carrier_research_context(*texts: str, max_docs: int = 4) -> str:
     query = " ".join(query_parts)
     try:
         from rag.vectorstore import search_filtered
+        from concurrent.futures import ThreadPoolExecutor
 
-        retrieved: list[str] = []
-        for source_type, label in (("wiki", "Wiki"), ("kb_articles", "KB")):
+        def _fetch(source_type_label):
+            source_type, label = source_type_label
             docs = search_filtered(query, k=max_docs, source_type=source_type) or []
             if not docs:
-                continue
-            snippets: list[str] = []
+                return None
+            snippets = []
             for doc in docs[:max_docs]:
                 source = (
                     doc.metadata.get("title")
@@ -335,10 +336,11 @@ def carrier_research_context(*texts: str, max_docs: int = 4) -> str:
                     or label.lower()
                 )
                 snippets.append(f"[{source}]\n{doc.page_content[:500]}")
-            if snippets:
-                retrieved.append(f"{label} carrier context:\n" + "\n\n---\n\n".join(snippets))
-        if retrieved:
-            sections.extend(retrieved)
+            return f"{label} carrier context:\n" + "\n\n---\n\n".join(snippets) if snippets else None
+
+        with ThreadPoolExecutor(max_workers=2) as _p:
+            results = list(_p.map(_fetch, [("wiki", "Wiki"), ("kb_articles", "KB")]))
+        sections.extend(r for r in results if r)
     except Exception:
         pass
 

@@ -714,21 +714,34 @@ def generate_test_cases(card, model: str | None = None, ac_text: str | None = No
     dev_comments_section = _build_dev_comments_section(comments)
 
     labels_hint = _labels_carrier_hint(getattr(card, "labels", None))
-    try:
-        from pipeline.carrier_knowledge import carrier_research_context
 
-        carrier_context = carrier_research_context(card.name, _requirements_text, comments_text, labels_hint)
-        carrier_context = carrier_research_context(card.name, _requirements_text, comments_text, labels_hint or _labels_text)
-    except Exception:
-        carrier_context = "Carrier scope unavailable."
+    # Fetch all context sections in parallel to avoid sequential Ollama embedding calls.
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _fetch_carrier() -> str:
+        try:
+            from pipeline.carrier_knowledge import carrier_research_context
+            return carrier_research_context(
+                card.name, _requirements_text, comments_text, labels_hint or _labels_text
+            )
+        except Exception:
+            return "Carrier scope unavailable."
+
+    with ThreadPoolExecutor(max_workers=4) as _pool:
+        _f_carrier  = _pool.submit(_fetch_carrier)
+        _f_rag      = _pool.submit(_build_rag_context_section, card.name, _requirements_text)
+        _f_code     = _pool.submit(_build_code_context_section, card.name, _requirements_text)
+        _f_feedback = _pool.submit(_build_feedback_context_section, card.name, _requirements_text)
+        carrier_context      = _f_carrier.result()
+        rag_context_section      = _f_rag.result()
+        code_context_section     = _f_code.result()
+        feedback_context_section = _f_feedback.result()
+
     carrier_context_section = (
         f"\nCarrier / platform context:\n{carrier_context}\n"
         if carrier_context and carrier_context != "Carrier scope unavailable."
         else ""
     )
-    rag_context_section = _build_rag_context_section(card.name, _requirements_text)
-    code_context_section = _build_code_context_section(card.name, _requirements_text)
-    feedback_context_section = _build_feedback_context_section(card.name, _requirements_text)
 
     ctx_parts = []
     if dev_comments_section:
@@ -927,26 +940,37 @@ def _build_code_context_section_cached(card_name: str, card_desc: str) -> str:
             return ""
 
         query = f"{card_name} {card_desc or ''}".strip()[:500]
-        sections: list[str] = []
-        for source_type, label, limit, snippet_limit in (
-            ("automation", "Existing automation test patterns", 3, 600),
-            ("backend", "Backend implementation", 3, 600),
-            ("frontend", "Frontend implementation", 2, 500),
-        ):
-            if stats.get(source_type, 0) <= 0:
-                continue
+        _source_specs = [
+            (st, lbl, lim, sl)
+            for st, lbl, lim, sl in (
+                ("automation", "Existing automation test patterns", 3, 600),
+                ("backend",    "Backend implementation",            3, 600),
+                ("frontend",   "Frontend implementation",           2, 500),
+            )
+            if stats.get(st, 0) > 0
+        ]
+
+        def _search_one(spec):
+            source_type, label, limit, snippet_limit = spec
             docs = search_code(query, k=4, source_type=source_type)
             lines = []
             seen: set[str] = set()
             for doc in docs:
                 file_path = doc.metadata.get("file_path", "")
-                language = doc.metadata.get("language", "")
+                language  = doc.metadata.get("language", "")
                 if file_path and file_path not in seen:
                     seen.add(file_path)
                     fence = language or ""
                     lines.append(f"[{source_type}/{file_path}]\n```{fence}\n{doc.page_content[:snippet_limit]}\n```")
-            if lines:
-                sections.append(f"{label}:\n" + "\n\n".join(lines[:limit]))
+            return (label, lines[:limit]) if lines else None
+
+        from concurrent.futures import ThreadPoolExecutor
+        sections: list[str] = []
+        with ThreadPoolExecutor(max_workers=3) as _p:
+            for result in _p.map(_search_one, _source_specs):
+                if result:
+                    label, lines = result
+                    sections.append(f"{label}:\n" + "\n\n".join(lines))
         if not sections:
             return ""
         return "\nRelevant automation / code context:\n" + "\n\n---\n".join(sections) + "\n"
