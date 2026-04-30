@@ -3375,17 +3375,6 @@ def _verify_scenario(
             logger.warning(f"Order creation failed for {order_action}/{carrier_code}: {e}")
             # Continue without order — agent will attempt to find existing orders
 
-    # If no order was created, try to extract an order ID directly from the scenario text
-    # so that preflight can still navigate to it (e.g. "Click on order #3771").
-    if not order_id:
-        import re as _re_oid
-        _oid_match = _re_oid.search(r"#(\d{3,6})\b|order\s+(?:id\s+)?#?(\d{3,6})\b", scenario, _re_oid.IGNORECASE)
-        if _oid_match:
-            _raw = _oid_match.group(1) or _oid_match.group(2)
-            order_id = f"#{_raw}"
-            ctx = f"TARGET ORDER: {order_id}\n\n{ctx}"
-            logger.info("Extracted order ID from scenario text: %s", order_id)
-
     try:
         preflight_ctx = _run_preflight_setup(
             page=active_page,
