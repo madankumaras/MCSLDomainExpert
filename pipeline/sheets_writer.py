@@ -42,6 +42,21 @@ TAB_KEYWORDS = {
     "Order Management": ["order", "fulfillment", "sync"],
 }
 
+AI_TAB_HEADERS = [
+    "Sl no",
+    "Epics ( Title)",
+    "Scenario",
+    "Feature",
+    "Description",
+    "Comments",
+    "Automated",
+    "Details/Transaction ID\n [Shopify]",
+    "Pass/Fail \n[Shopify]",
+    "Details/Transaction ID \n[Woocommerce]",
+    "Pass/Fail \n[Woocommerce]",
+    "Remarks",
+]
+
 
 def list_sheet_tabs() -> list[str]:
     """Return live worksheet titles from the configured Google Sheet."""
@@ -77,6 +92,67 @@ class DuplicateMatch:
     existing_scenario: str
     new_scenario: str
     similarity: float
+
+
+def _normalize_header(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "")).strip().lower()
+
+
+def _worksheet_uses_ai_layout(worksheet) -> bool:
+    title = getattr(worksheet, "title", "") or ""
+    if title.strip().lower() == "ai":
+        return True
+    values = worksheet.get_all_values()
+    if not values:
+        return False
+    header = [_normalize_header(col) for col in values[0]]
+    expected = [_normalize_header(col) for col in AI_TAB_HEADERS]
+    return header[: len(expected)] == expected
+
+
+def _build_ai_tab_row(row: "TestCaseRow") -> list[str]:
+    scenario = re.sub(r"^TC-\d+:\s*", "", row.scenario or "").strip()
+    description_lines = []
+    for line in (row.description or "").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Scenario:"):
+            continue
+        if stripped:
+            description_lines.append(stripped)
+    description = "\n".join(description_lines)
+    remarks = []
+    if row.priority:
+        remarks.append(f"Priority: {row.priority}")
+    if row.release:
+        remarks.append(f"Release: {row.release}")
+    return [
+        str(row.si_no),
+        row.epic,
+        scenario,
+        "",
+        description,
+        row.comments,
+        "No",
+        row.details,
+        row.pass_fail,
+        "",
+        "",
+        " | ".join(remarks),
+    ]
+
+
+def _build_default_row(row: "TestCaseRow") -> list[str]:
+    return [
+        row.si_no,
+        row.epic,
+        row.scenario,
+        row.description,
+        row.comments,
+        row.priority,
+        row.details,
+        row.pass_fail,
+        row.release,
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -418,55 +494,42 @@ def append_to_sheet(
     next_si = len(existing)
 
     duplicates = check_duplicates(rows, target_tab)
+    _use_ai_layout = _worksheet_uses_ai_layout(ws)
+    if not _use_ai_layout:
+        # Group non-AI tabs under a highlighted card header row.
+        if card_url:
+            header_cell = f'=HYPERLINK("{card_url}","{card_name.replace(chr(34), chr(39))}")'
+        else:
+            header_cell = card_name
+        release_label = f"Release: {release}" if release else ""
+        num_cols = 9
+        header_row = [header_cell, release_label] + [""] * (num_cols - 2)
+        ws.append_row(header_row, value_input_option="USER_ENTERED")
 
-    # ── Card header row ──────────────────────────────────────────────────────
-    # One coloured row per card: card name (hyperlinked when URL available) +
-    # release label so the group is easy to spot at a glance.
-    if card_url:
-        header_cell = f'=HYPERLINK("{card_url}","{card_name.replace(chr(34), chr(39))}")'
-    else:
-        header_cell = card_name
-    release_label = f"Release: {release}" if release else ""
-    num_cols = 9
-    header_row = [header_cell, release_label] + [""] * (num_cols - 2)
-    ws.append_row(header_row, value_input_option="USER_ENTERED")
+        header_row_index = next_si
+        try:
+            sh.batch_update({"requests": [{"repeatCell": {
+                "range": {
+                    "sheetId": ws.id,
+                    "startRowIndex": header_row_index,
+                    "endRowIndex": header_row_index + 1,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": num_cols,
+                },
+                "cell": {"userEnteredFormat": {
+                    "backgroundColor": {"red": 1.0, "green": 0.851, "blue": 0.4},
+                    "textFormat": {"bold": True},
+                }},
+                "fields": "userEnteredFormat(backgroundColor,textFormat)",
+            }}]})
+        except Exception:
+            pass
 
-    # Colour the header row golden-yellow (#FFD966)
-    header_row_index = next_si  # 0-based
-    try:
-        sh.batch_update({"requests": [{"repeatCell": {
-            "range": {
-                "sheetId": ws.id,
-                "startRowIndex": header_row_index,
-                "endRowIndex": header_row_index + 1,
-                "startColumnIndex": 0,
-                "endColumnIndex": num_cols,
-            },
-            "cell": {"userEnteredFormat": {
-                "backgroundColor": {"red": 1.0, "green": 0.851, "blue": 0.4},
-                "textFormat": {"bold": True},
-            }},
-            "fields": "userEnteredFormat(backgroundColor,textFormat)",
-        }}]})
-    except Exception:
-        pass  # colour is cosmetic — don't fail the whole write
+        next_si += 1
 
-    next_si += 1
-
-    # ── TC rows ──────────────────────────────────────────────────────────────
     for row in rows:
         row.si_no = next_si
-        ws.append_row([
-            row.si_no,
-            row.epic,
-            row.scenario,
-            row.description,
-            row.comments,
-            row.priority,
-            row.details,
-            row.pass_fail,
-            row.release,
-        ])
+        ws.append_row(_build_ai_tab_row(row) if _use_ai_layout else _build_default_row(row))
         next_si += 1
 
     sheet_url = f"https://docs.google.com/spreadsheets/d/{config.GOOGLE_SHEETS_ID}"

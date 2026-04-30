@@ -52,7 +52,15 @@ _ANTI_BOT_ARGS = [
     "--disable-setuid-sandbox",
 ]
 
-_AUTH_JSON = Path(config.MCSL_AUTOMATION_REPO_PATH) / "auth.json" if getattr(config, "MCSL_AUTOMATION_REPO_PATH", "") else Path(__file__).parent.parent / "auth.json"
+_AUTH_JSON = (
+    Path(getattr(config, "MCSL_CHROME_AUTH_PATH", ""))
+    if getattr(config, "MCSL_CHROME_AUTH_PATH", "")
+    else (
+        Path(config.MCSL_AUTOMATION_REPO_PATH) / "auth-chrome.json"
+        if getattr(config, "MCSL_AUTOMATION_REPO_PATH", "")
+        else Path(__file__).parent.parent / "auth-chrome.json"
+    )
+)
 
 
 def _store_slug(raw: str = "") -> str:

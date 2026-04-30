@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
+import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -53,7 +54,24 @@ from pipeline.slack_client import post_signoff as slack_post_signoff, slack_conf
 from pipeline.bug_reporter import is_qa_name, notify_devs_of_bug
 from pipeline.bug_reporter import diagnose_customer_ticket
 from pipeline.locator_knowledge import get_scenario_locator_entries, update_scenario_locator_review
+from pipeline.new_carrier_validation import (
+    NewCarrierValidationRun,
+    ShopifyProductRef,
+    build_new_carrier_run,
+    load_new_carrier_run,
+    load_existing_carrier_env,
+    list_new_carrier_runs,
+    save_new_carrier_run,
+    write_carrier_env_file,
+)
+from pipeline.new_carrier_runner import run_carrier_suite
+from pipeline.new_carrier_onboarding import (
+    DEFAULT_PARTNER_APPS_URL,
+    DEFAULT_PARTNER_STORES_URL,
+    create_store_and_install_app,
+)
 from pipeline.requirement_research import clear_requirement_research_cache
+from pipeline.shopify_product_seed import create_seed_products
 
 # ── History persistence helpers ────────────────────────────────────────────────
 
@@ -104,6 +122,52 @@ def _sheet_tab_options() -> list[str]:
             st.session_state[cache_key] = list(SHEET_TABS)
             st.session_state[error_key] = str(exc)
     return list(st.session_state.get(cache_key, SHEET_TABS))
+
+
+def _reindex_wiki_documents(wiki_path: str) -> tuple[int, str]:
+    """Rebuild wiki chunks in the main knowledge collection."""
+    from ingest.wiki_loader import load_wiki_docs
+    from rag.vectorstore import add_documents, delete_by_source_type
+
+    docs = load_wiki_docs(wiki_path=wiki_path)
+    deleted = delete_by_source_type("wiki")
+    if docs:
+        add_documents(docs)
+    _clear_generation_context_caches()
+    logger.info("Wiki re-index complete: deleted=%d new_docs=%d", deleted, len(docs))
+    return len(docs), ""
+
+
+def _pull_and_sync_wiki(wiki_path: str, branch: str | None = None) -> tuple[int, str]:
+    """Pull the wiki repo and rebuild wiki chunks."""
+    target_branch = (branch or "").strip()
+    try:
+        if target_branch:
+            subprocess.run(["git", "checkout", target_branch], cwd=wiki_path, check=True, capture_output=True, text=True)
+        subprocess.run(["git", "fetch", "origin"], cwd=wiki_path, check=False, capture_output=True, text=True)
+        current_branch = target_branch or subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=wiki_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subprocess.run(
+            ["git", "pull", "origin", current_branch],
+            cwd=wiki_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        detail = stderr or stdout or str(exc)
+        return 0, f"git sync failed: {detail}"
+    except Exception as exc:  # noqa: BLE001
+        return 0, f"git sync failed: {exc}"
+
+    return _reindex_wiki_documents(wiki_path)
 
 
 _RESEARCH_SECTION_TITLES = (
@@ -958,6 +1022,15 @@ div[data-baseweb="input"] > div,
     border-radius: 14px !important;
 }
 
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder,
+.stNumberInput input::placeholder,
+div[data-baseweb="input"] input::placeholder,
+div[data-baseweb="select"] input::placeholder {
+    color: rgba(76, 97, 123, 0.85) !important;
+    opacity: 1 !important;
+}
+
 .stTextArea textarea {
     line-height: 1.45;
 }
@@ -1102,6 +1175,16 @@ button[data-baseweb="tab"][aria-selected="true"] svg {
     border-radius: 16px !important;
     border: 1px solid rgba(255,255,255,0.06) !important;
 }
+.stAlert,
+.stAlert *,
+[data-testid="stAlert"],
+[data-testid="stAlert"] * {
+    color: #1f2937 !important;
+    opacity: 1 !important;
+}
+[data-testid="stAlert"] a {
+    color: #1d4ed8 !important;
+}
 
 .stProgress > div > div > div > div {
     background: linear-gradient(90deg, var(--accent), var(--accent-2)) !important;
@@ -1208,6 +1291,24 @@ def _init_state() -> None:
         "run_running":        False,
         "run_result":         None,
         "run_selected_specs": [],
+        # Phase 11 — New Carrier Validation
+        "new_carrier_code": "",
+        "new_carrier_store_name": "",
+        "new_carrier_template_env": "",
+        "new_carrier_products": {},
+        "new_carrier_env_path": "",
+        "new_carrier_run_file": "",
+        "new_carrier_suite_results": {},
+        "new_carrier_store_created": False,
+        "new_carrier_app_installed": False,
+        "new_carrier_partner_stores_url": DEFAULT_PARTNER_STORES_URL,
+        "new_carrier_partner_apps_url": DEFAULT_PARTNER_APPS_URL,
+        "new_carrier_onboarding_stdout": "",
+        "new_carrier_onboarding_stderr": "",
+        "new_carrier_registration_done": False,
+        "new_carrier_registration_notes": "",
+        "new_carrier_registration_persisted": {"done": False, "notes": ""},
+        "new_carrier_selected_run": "",
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -2050,36 +2151,61 @@ def main() -> None:
             )
             _wiki_path_value = (wiki_path or "").strip()
             _wiki_exists = False
+            _wiki_info = {}
             if wiki_path:
                 from pathlib import Path as _Path
                 _wiki_exists = _Path(_wiki_path_value).exists()
                 if _wiki_exists:
                     _md_count = len(list(_Path(_wiki_path_value).rglob("*.md")))
                     st.caption(f"{_md_count} markdown files found")
+                    try:
+                        from rag.code_indexer import get_repo_info
+                        _wiki_info = get_repo_info(_wiki_path_value)
+                    except Exception:  # noqa: BLE001
+                        _wiki_info = {}
                 else:
                     st.warning("⚠️ Wiki path not found")
+            _wiki_branches = _wiki_info.get("branches", [])
+            _wiki_current = _wiki_info.get("current_branch", "")
+            _wiki_commit = _wiki_info.get("commit", "")
+            if _wiki_branches:
+                _wiki_idx = _wiki_branches.index(_wiki_current) if _wiki_current in _wiki_branches else 0
+                st.selectbox("Branch to pull", _wiki_branches, index=_wiki_idx, key="wiki_branch_select")
+                st.caption(f"Current: `{_wiki_current}` @ `{_wiki_commit}`")
+            elif _wiki_path_value and _wiki_exists:
+                st.caption(f"Current: `{_wiki_current or 'unknown'}` @ `{_wiki_commit}`" if _wiki_current else "⚠️ Branch info unavailable")
             _wiki_btn_disabled = not _wiki_path_value
             if _wiki_btn_disabled:
                 st.caption("Enter a wiki path to enable re-index.")
             elif not _wiki_exists:
                 st.caption("Path entered, but folder was not found. Re-index is still available if the path becomes valid.")
-            if st.button("Re-index Wiki", key="wiki_reindex_btn", disabled=_wiki_btn_disabled):
-                with st.spinner("Indexing wiki docs…"):
-                    try:
-                        from ingest.wiki_loader import load_wiki_docs
-                        from rag.vectorstore import add_documents as _vs_add_documents
-                        _docs = load_wiki_docs(wiki_path=_wiki_path_value)
-                        if _docs:
-                            # Use the batching wrapper (500 docs/batch) to stay under
-                            # ChromaDB's max_batch_size of 5461.
-                            _vs_add_documents(_docs)
-                            _clear_generation_context_caches()
-                            st.success(f"✅ Indexed {len(_docs)} wiki chunks.")
-                            st.rerun()
-                        else:
-                            st.warning("No wiki documents found.")
-                    except Exception as _wiki_err:
-                        st.error(f"Wiki index failed: {_wiki_err}")
+            col_sync, col_idx = st.columns(2)
+            with col_sync:
+                if st.button("Pull & Sync", key="wiki_sync_btn", disabled=_wiki_btn_disabled):
+                    _branch = st.session_state.get("wiki_branch_select", _wiki_current or "main")
+                    with st.spinner("Syncing wiki…"):
+                        _count, _error = _pull_and_sync_wiki(_wiki_path_value, _branch)
+                    if _error:
+                        st.error(f"Wiki sync failed: {_error}")
+                    elif _count:
+                        st.success(f"✅ Synced and indexed {_count} wiki chunks.")
+                        st.rerun()
+                    else:
+                        st.warning("No wiki documents found.")
+            with col_idx:
+                if st.button("Full Re-index", key="wiki_reindex_btn", disabled=_wiki_btn_disabled):
+                    with st.spinner("Re-indexing wiki docs…"):
+                        try:
+                            _count, _error = _reindex_wiki_documents(_wiki_path_value)
+                        except Exception as _wiki_err:
+                            _count, _error = 0, str(_wiki_err)
+                    if _error:
+                        st.error(f"Wiki re-index failed: {_error}")
+                    elif _count:
+                        st.success(f"✅ Re-indexed {_count} wiki chunks.")
+                        st.rerun()
+                    else:
+                        st.warning("No wiki documents found.")
 
         st.divider()
 
@@ -2097,7 +2223,7 @@ def main() -> None:
     )
 
     # ── Pipeline tabs ──────────────────────────────────────────────────────
-    tab_us, tab_devdone, tab_validate_ac, tab_generate_tc, tab_ai_qa, tab_release_automation, tab_history, tab_signoff, tab_handoff = st.tabs([
+    tab_us, tab_devdone, tab_validate_ac, tab_generate_tc, tab_ai_qa, tab_release_automation, tab_history, tab_signoff, tab_handoff, tab_new_carrier = st.tabs([
         "📝 User Story",
         "🔀 Move Cards",
         "🧾 Validate AC",
@@ -2107,6 +2233,7 @@ def main() -> None:
         "📋 History",
         "✅ Sign Off",
         "📘 Handoff Docs",
+        "🚚 New Carrier Validation",
     ])
     tab_manual = tab_validate_ac
     tab_run = tab_release_automation
@@ -3588,8 +3715,9 @@ def main() -> None:
 
                                     _raw = f"{card.name}\n\n{card.desc or ''}".strip()
                                     _comments = "\n".join(getattr(card, "comments", []) or [])
+                                    _labels = "\n".join(getattr(card, "labels", []) or [])
                                     with st.spinner("Generating User Story & AC…"):
-                                        _research = build_requirement_research_context(_raw)
+                                        _research = build_requirement_research_context(f"{_raw}\n{_labels}".strip())
                                         _generated = generate_acceptance_criteria(
                                             raw_request=_raw,
                                             attachments=card.attachments or None,
@@ -3597,6 +3725,7 @@ def main() -> None:
                                             research_context=_research,
                                             comments_context=_comments,
                                             labels=getattr(card, "labels", None) or [],
+                                            labels_context=_labels,
                                         )
                                     st.session_state[_ac_key] = _generated
                                     st.session_state[_ac_review_key] = get_last_ac_review()
@@ -3821,7 +3950,11 @@ def main() -> None:
 
                         if _gen_tc_clicked or (_force_regen and not _has_tc):
                             with st.spinner("Generating test cases…"):
-                                generated_tcs = generate_test_cases(card, ac_text=_current_ac_for_tc)
+                                generated_tcs = generate_test_cases(
+                                    card,
+                                    ac_text=_current_ac_for_tc,
+                                    labels_context="\n".join(getattr(card, "labels", []) or []),
+                                )
                                 st.session_state[_tc_key] = generated_tcs
                                 st.session_state[_tc_review_key] = get_last_tc_review()
                                 tc_store[card.id] = generated_tcs
@@ -5817,6 +5950,566 @@ def main() -> None:
                             st.session_state.pop("bug_raised_card", None)
                             st.session_state.pop("bug_check_result", None)
                             st.rerun()
+
+    with tab_new_carrier:
+        st.markdown("## 🚚 New Carrier Validation")
+        st.caption("Create the store, install the app, wait for QA carrier registration, then create products and run smoke, sanity, and regression.")
+
+        _saved_runs = list_new_carrier_runs()
+        _saved_run_options = [""] + [str(path) for path in _saved_runs]
+        _load_col1, _load_col2 = st.columns([3, 1])
+        with _load_col1:
+            _selected_saved_run = st.selectbox(
+                "Saved runs",
+                options=_saved_run_options,
+                key="new_carrier_selected_run",
+                format_func=lambda value: "Select a saved run" if not value else Path(value).name,
+            )
+        with _load_col2:
+            if st.button(
+                "📂 Load Run",
+                key="new_carrier_load_run_btn",
+                use_container_width=True,
+                disabled=not bool(_selected_saved_run),
+            ):
+                try:
+                    _loaded_run = load_new_carrier_run(_selected_saved_run)
+                    st.session_state["new_carrier_code"] = _loaded_run.carrier_code
+                    st.session_state["new_carrier_store_name"] = _loaded_run.store_name
+                    st.session_state["new_carrier_store_created"] = _loaded_run.store_created
+                    st.session_state["new_carrier_app_installed"] = _loaded_run.app_installed
+                    st.session_state["new_carrier_app_url"] = _loaded_run.app_url
+                    st.session_state["new_carrier_shopify_url"] = _loaded_run.shopify_url
+                    st.session_state["new_carrier_partner_stores_url"] = _loaded_run.partner_url or DEFAULT_PARTNER_STORES_URL
+                    st.session_state["new_carrier_partner_apps_url"] = _loaded_run.partner_apps_url or DEFAULT_PARTNER_APPS_URL
+                    st.session_state["new_carrier_shopify_access_token"] = _loaded_run.shopify_access_token
+                    st.session_state["new_carrier_shopify_api_version"] = _loaded_run.shopify_api_version
+                    st.session_state["new_carrier_products"] = {
+                        group: [
+                            {
+                                "product_id": item.product_id,
+                                "variant_id": item.variant_id,
+                            }
+                            for item in items
+                        ]
+                        for group, items in _loaded_run.normalized_product_groups().items()
+                    }
+                    st.session_state["new_carrier_env_path"] = _loaded_run.env_path
+                    st.session_state["new_carrier_run_file"] = str(Path(_selected_saved_run))
+                    st.session_state["new_carrier_registration_done"] = _loaded_run.registration_done
+                    st.session_state["new_carrier_registration_notes"] = _loaded_run.registration_notes
+                    st.session_state["new_carrier_registration_persisted"] = {
+                        "done": _loaded_run.registration_done,
+                        "notes": _loaded_run.registration_notes,
+                    }
+                    st.session_state["new_carrier_suite_results"] = dict(_loaded_run.suite_results or {})
+                    st.session_state["new_carrier_onboarding_stdout"] = ""
+                    st.session_state["new_carrier_onboarding_stderr"] = ""
+                    st.success(f"Loaded saved run `{Path(_selected_saved_run).name}`.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Failed to load saved run: {exc}")
+
+        _template_values: dict[str, str] = {}
+
+        def _persist_new_carrier_run(*, notes: str = "") -> str:
+            _stored_groups = st.session_state.get("new_carrier_products") or {}
+            _product_groups = {
+                group: [
+                    ShopifyProductRef(
+                        product_id=int(item["product_id"]),
+                        variant_id=int(item["variant_id"]),
+                    )
+                    for item in items
+                ]
+                for group, items in _stored_groups.items()
+            }
+            _run = build_new_carrier_run(
+                carrier_code=st.session_state.get("new_carrier_code", "").strip(),
+                store_name=st.session_state.get("new_carrier_store_name", "").strip(),
+                app_url=st.session_state.get("new_carrier_app_url", "").strip(),
+                shopify_url=st.session_state.get("new_carrier_shopify_url", "").strip(),
+                partner_url=st.session_state.get("new_carrier_partner_stores_url", "").strip()
+                or _template_values.get("PARTNER_URL", ""),
+                partner_apps_url=st.session_state.get("new_carrier_partner_apps_url", "").strip(),
+                user_email=_template_values.get("USER_EMAIL", ""),
+                user_password=_template_values.get("USER_PASSWORD", ""),
+                store_password=_template_values.get("STORE_PASSWORD", ""),
+                shopify_access_token=st.session_state.get("new_carrier_shopify_access_token", "").strip(),
+                shopify_api_version=st.session_state.get("new_carrier_shopify_api_version", "").strip()
+                or _template_values.get("SHOPIFY_API_VERSION", ""),
+                slack_webhook_url=_template_values.get("SLACK_WEBHOOK_URL", ""),
+                product_groups=_product_groups,
+                env_path=st.session_state.get("new_carrier_env_path", ""),
+                notes=notes,
+                store_created=bool(st.session_state.get("new_carrier_store_created")),
+                app_installed=bool(st.session_state.get("new_carrier_app_installed")),
+                registration_done=bool(st.session_state.get("new_carrier_registration_done")),
+                registration_notes=st.session_state.get("new_carrier_registration_notes", "").strip(),
+                suite_results=st.session_state.get("new_carrier_suite_results") or {},
+            )
+            _run_file = save_new_carrier_run(_run)
+            st.session_state["new_carrier_run_file"] = str(_run_file)
+            return str(_run_file)
+
+        _env_dir = Path(config.MCSL_AUTOMATION_REPO_PATH) / "carrier-envs"
+        _env_options = [""] + sorted(path.stem for path in _env_dir.glob("*.env")) if _env_dir.exists() else [""]
+
+        st.markdown("### Stage 1: Create Store & Install App")
+        _current_store_slug = st.session_state.get("new_carrier_store_name", "").strip()
+        if _current_store_slug:
+            _derived_shopify_url = f"https://admin.shopify.com/store/{_current_store_slug}"
+            _derived_app_url = f"{_derived_shopify_url}/apps/mcsl-qa"
+            if not st.session_state.get("new_carrier_shopify_url", "").strip() or "<store>" in st.session_state.get("new_carrier_shopify_url", ""):
+                st.session_state["new_carrier_shopify_url"] = _derived_shopify_url
+            if not st.session_state.get("new_carrier_app_url", "").strip() or "<store>" in st.session_state.get("new_carrier_app_url", ""):
+                st.session_state["new_carrier_app_url"] = _derived_app_url
+
+        _setup_col1, _setup_col2 = st.columns(2)
+        with _setup_col1:
+            _carrier_code = st.text_input(
+                "Carrier code",
+                key="new_carrier_code",
+                placeholder="e.g. fedex-new-api",
+                help="Used for the generated carrier env filename.",
+            ).strip()
+            _store_name = st.text_input(
+                "Shopify store name",
+                key="new_carrier_store_name",
+                placeholder="e.g. packaging-mcsl-automation",
+                help="This store will be created first, then used for manual carrier setup and product seeding.",
+            ).strip()
+            st.text_input(
+                "Partner stores URL",
+                key="new_carrier_partner_stores_url",
+                placeholder=DEFAULT_PARTNER_STORES_URL,
+            )
+        with _setup_col2:
+            st.text_input(
+                "Partner apps URL",
+                key="new_carrier_partner_apps_url",
+                placeholder=DEFAULT_PARTNER_APPS_URL,
+            )
+            _app_url = st.text_input(
+                "App URL",
+                key="new_carrier_app_url",
+                placeholder="https://admin.shopify.com/store/<store>/apps/mcsl-qa",
+            ).strip()
+            _shopify_url = st.text_input(
+                "Shopify admin URL",
+                key="new_carrier_shopify_url",
+                placeholder="https://admin.shopify.com/store/<store>",
+            ).strip()
+
+        _onboard_col1, _onboard_col2 = st.columns([2, 1])
+        with _onboard_col1:
+            if st.button(
+                "🏪 Create Store & Install App",
+                key="new_carrier_create_store_install_app_btn",
+                use_container_width=True,
+            ):
+                if not _store_name:
+                    st.error("Shopify store name is required.")
+                else:
+                    with st.spinner("Creating Shopify store and installing the MCSL app..."):
+                        try:
+                            _onboarding = create_store_and_install_app(
+                                store_name=_store_name,
+                                partner_stores_url=st.session_state.get("new_carrier_partner_stores_url", DEFAULT_PARTNER_STORES_URL),
+                                partner_apps_url=st.session_state.get("new_carrier_partner_apps_url", DEFAULT_PARTNER_APPS_URL),
+                            )
+                            st.session_state["new_carrier_store_name"] = _onboarding.store_name
+                            st.session_state["new_carrier_store_created"] = _onboarding.store_created
+                            st.session_state["new_carrier_app_installed"] = _onboarding.app_installed
+                            st.session_state["new_carrier_shopify_url"] = _onboarding.shopify_url
+                            st.session_state["new_carrier_app_url"] = _onboarding.app_url
+                            st.session_state["new_carrier_onboarding_stdout"] = _onboarding.stdout
+                            st.session_state["new_carrier_onboarding_stderr"] = _onboarding.stderr
+                            _persist_new_carrier_run(notes="Created Shopify store and installed the MCSL app.")
+                            st.success("Store created and app installation completed.")
+                        except Exception as exc:
+                            st.error(f"Failed to create store and install app: {exc}")
+        with _onboard_col2:
+            _store_ready = bool(st.session_state.get("new_carrier_store_created"))
+            _app_ready = bool(st.session_state.get("new_carrier_app_installed"))
+            st.metric("Store", "Created" if _store_ready else "Pending")
+            st.metric("App", "Installed" if _app_ready else "Pending")
+
+        _onboarding_stdout = st.session_state.get("new_carrier_onboarding_stdout", "").strip()
+        _onboarding_stderr = st.session_state.get("new_carrier_onboarding_stderr", "").strip()
+        if _onboarding_stdout or _onboarding_stderr:
+            with st.expander("Store/App setup logs", expanded=False):
+                if _onboarding_stdout:
+                    st.code(_onboarding_stdout, language="text")
+                if _onboarding_stderr:
+                    st.code(_onboarding_stderr, language="text")
+
+        st.divider()
+        st.markdown("### Stage 2: Manual QA Carrier Registration")
+        st.caption("After the app is installed, QA registers the new carrier in the app manually. Product creation is unlocked only after this checkpoint.")
+        _store_setup_complete = bool(st.session_state.get("new_carrier_store_created")) and bool(st.session_state.get("new_carrier_app_installed"))
+        _checkpoint_col1, _checkpoint_col2 = st.columns([2, 1])
+        with _checkpoint_col1:
+            st.text_area(
+                "Registration notes",
+                key="new_carrier_registration_notes",
+                placeholder="What QA configured in the carrier account, service level, credentials, or required app settings.",
+            )
+        with _checkpoint_col2:
+            st.checkbox(
+                "Carrier registered and verified in app",
+                key="new_carrier_registration_done",
+                help="Required before product creation and automation runs.",
+            )
+        _current_checkpoint = {
+            "done": bool(st.session_state.get("new_carrier_registration_done")),
+            "notes": st.session_state.get("new_carrier_registration_notes", "").strip(),
+        }
+        if _current_checkpoint != st.session_state.get("new_carrier_registration_persisted"):
+            try:
+                _persist_new_carrier_run(notes="Updated manual carrier registration checkpoint.")
+                st.session_state["new_carrier_registration_persisted"] = _current_checkpoint
+            except Exception:
+                pass
+        if not _store_setup_complete:
+            st.warning("Create the store and install the app first. After that, QA can register the carrier here.")
+        elif not st.session_state.get("new_carrier_registration_done"):
+            st.warning("Manual carrier registration is still pending. Product creation and automation runs stay disabled until QA confirms this checkpoint.")
+        else:
+            st.success("Manual carrier registration checkpoint completed.")
+        if st.button("💾 Save Checkpoint Notes", key="new_carrier_save_checkpoint_notes_btn"):
+            try:
+                _persist_new_carrier_run(notes="Saved manual carrier registration notes.")
+                st.session_state["new_carrier_registration_persisted"] = _current_checkpoint
+                st.success("Checkpoint notes saved to the run record.")
+            except Exception as exc:
+                st.error(f"Failed to save checkpoint notes: {exc}")
+
+        _template_values = {}
+        _template_env = ""
+        _shopify_access_token = ""
+        _shopify_api_version = ""
+        _store_specific_token_ready = bool(st.session_state.get("new_carrier_shopify_access_token", "").strip())
+
+        st.markdown("### Stage 3: Create Products & Generate Env")
+        _nc_col1, _nc_col2 = st.columns(2)
+        with _nc_col1:
+            _template_env = st.selectbox(
+                "Base carrier env (optional)",
+                options=_env_options,
+                key="new_carrier_template_env",
+                format_func=lambda value: value or "None",
+                help="Copies shared non-product defaults from an existing carrier env before writing the new one.",
+            )
+        with _nc_col2:
+            _shopify_access_token = st.text_input(
+                "Shopify access token",
+                key="new_carrier_shopify_access_token",
+                type="password",
+                placeholder="Paste the Admin API token for this newly created store",
+                help="This token is store-specific. Do not reuse the global/default token unless it belongs to this exact store.",
+            ).strip()
+            _shopify_api_version = st.text_input(
+                "Shopify API version",
+                value=config.SHOPIFY_API_VERSION,
+                key="new_carrier_shopify_api_version",
+                placeholder="2023-01",
+            ).strip()
+
+        _template_values = load_existing_carrier_env(_template_env) if _template_env else {}
+        if _template_values:
+            st.info(
+                "Template defaults loaded from "
+                f"`{_template_env}.env` for shared non-product fields like partner/app URLs and credentials. "
+                "The Shopify access token is not copied from the template."
+            )
+        if _store_setup_complete and not _store_specific_token_ready:
+            st.warning("Store created. Paste the Admin API token for this new store before creating products or generating the env file.")
+
+        _act_col1, _act_col2 = st.columns(2)
+        with _act_col1:
+            if st.button(
+                "🛍️ Create Required Products",
+                key="new_carrier_create_products_btn",
+                use_container_width=True,
+                disabled=(not _store_setup_complete) or (not st.session_state.get("new_carrier_registration_done")) or (not _store_specific_token_ready),
+            ):
+                if not _carrier_code or not _store_name or not _shopify_access_token:
+                    st.error("Carrier code, store name, and Shopify access token are required.")
+                else:
+                    with st.spinner("Creating deterministic Shopify products for automation..."):
+                        try:
+                            _products = create_seed_products(
+                                carrier_code=_carrier_code,
+                                store_name=_store_name,
+                                shopify_access_token=_shopify_access_token,
+                                shopify_api_version=_shopify_api_version,
+                            )
+                            st.session_state["new_carrier_products"] = {
+                                group: [
+                                    {
+                                        "product_id": item.product_id,
+                                        "variant_id": item.variant_id,
+                                        "title": item.title,
+                                    }
+                                    for item in items
+                                ]
+                                for group, items in _products.items()
+                            }
+                            st.success("Required Shopify products created.")
+                        except Exception as exc:
+                            st.error(f"Failed to create Shopify products: {exc}")
+
+        with _act_col2:
+            if st.button(
+                "🧾 Generate Carrier Env",
+                key="new_carrier_write_env_btn",
+                use_container_width=True,
+                disabled=(not _store_setup_complete) or (not st.session_state.get("new_carrier_registration_done")) or (not _store_specific_token_ready),
+            ):
+                _stored_groups = st.session_state.get("new_carrier_products") or {}
+                if not _carrier_code or not _store_name:
+                    st.error("Carrier code and store name are required.")
+                elif not _stored_groups:
+                    st.error("Create the required products first.")
+                else:
+                    try:
+                        _product_groups = {
+                            group: [
+                                ShopifyProductRef(
+                                    product_id=int(item["product_id"]),
+                                    variant_id=int(item["variant_id"]),
+                                )
+                                for item in items
+                            ]
+                            for group, items in _stored_groups.items()
+                        }
+                        _run = NewCarrierValidationRun(
+                            carrier_code=_carrier_code,
+                            store_name=_store_name,
+                            store_created=bool(st.session_state.get("new_carrier_store_created")),
+                            app_installed=bool(st.session_state.get("new_carrier_app_installed")),
+                            app_url=_app_url or _template_values.get("APPURL", ""),
+                            shopify_url=_shopify_url or _template_values.get("SHOPIFYURL", ""),
+                            partner_url=st.session_state.get("new_carrier_partner_stores_url", "").strip()
+                            or _template_values.get("PARTNER_URL", ""),
+                            partner_apps_url=st.session_state.get("new_carrier_partner_apps_url", "").strip(),
+                            user_email=_template_values.get("USER_EMAIL", ""),
+                            user_password=_template_values.get("USER_PASSWORD", ""),
+                            store_password=_template_values.get("STORE_PASSWORD", ""),
+                            shopify_access_token=_shopify_access_token,
+                            shopify_api_version=_shopify_api_version or _template_values.get("SHOPIFY_API_VERSION", ""),
+                            slack_webhook_url=_template_values.get("SLACK_WEBHOOK_URL", ""),
+                            product_groups=_product_groups,
+                            notes=f"Generated from dashboard using template={_template_env or 'none'}",
+                        )
+                        _env_path = write_carrier_env_file(_run)
+                        st.session_state["new_carrier_env_path"] = str(_env_path)
+                        _run_file = _persist_new_carrier_run(
+                            notes=f"Generated from dashboard using template={_template_env or 'none'}"
+                        )
+                        st.success(f"Carrier env written to `{_env_path.name}`.")
+                    except Exception as exc:
+                        st.error(f"Failed to write carrier env: {exc}")
+
+        _stored_groups = st.session_state.get("new_carrier_products") or {}
+        if _stored_groups:
+            _mg1, _mg2, _mg3, _mg4 = st.columns(4)
+            _mg1.metric("Simple", len(_stored_groups.get("simple", [])))
+            _mg2.metric("Variable", len(_stored_groups.get("variable", [])))
+            _mg3.metric("Digital", len(_stored_groups.get("digital", [])))
+            _mg4.metric("Dangerous", len(_stored_groups.get("dangerous", [])))
+
+            with st.expander("Product IDs", expanded=True):
+                st.json(_stored_groups)
+
+        _env_path = st.session_state.get("new_carrier_env_path", "")
+        _run_file = st.session_state.get("new_carrier_run_file", "")
+        if _env_path or _run_file:
+            if _env_path:
+                st.caption(f"Carrier env: `{_env_path}`")
+            if _run_file:
+                st.caption(f"Run record: `{_run_file}`")
+
+        st.markdown("### Stage 4: Run Automation")
+        st.caption("Run the generated carrier env against the existing Playwright suite tags in `mcsl-test-automation`.")
+
+        _runner_col1, _runner_col2 = st.columns([2, 1])
+        with _runner_col1:
+            _runner_project = st.selectbox(
+                "Browser project",
+                options=["Google Chrome", "Firefox", "Safari"],
+                key="new_carrier_runner_project",
+            )
+        with _runner_col2:
+            _runner_headed = st.checkbox(
+                "Headed",
+                value=True,
+                key="new_carrier_runner_headed",
+                help="Matches the existing Shopify login flow used in automation.",
+            )
+
+        _suite_col1, _suite_col2, _suite_col3, _suite_col4 = st.columns(4)
+        for _suite_name, _col in [
+            ("smoke", _suite_col1),
+            ("sanity", _suite_col2),
+            ("regression", _suite_col3),
+        ]:
+            with _col:
+                if st.button(
+                    f"▶ Run {_suite_name.title()}",
+                    key=f"new_carrier_run_{_suite_name}",
+                    use_container_width=True,
+                    disabled=(not bool(_env_path)) or (not st.session_state.get("new_carrier_registration_done")),
+                ):
+                    try:
+                        with st.spinner(f"Running {_suite_name} suite in automation repo..."):
+                            _result = run_carrier_suite(
+                                env_path=_env_path,
+                                suite=_suite_name,
+                                project=_runner_project,
+                                headed=_runner_headed,
+                            )
+                        _suite_results = dict(st.session_state.get("new_carrier_suite_results") or {})
+                        _suite_results[_suite_name] = {
+                            "suite": _result.suite,
+                            "command": _result.command,
+                            "returncode": _result.returncode,
+                            "stdout": _result.stdout,
+                            "stderr": _result.stderr,
+                            "duration_seconds": _result.duration_seconds,
+                            "html_report": _result.html_report,
+                            "smart_report": _result.smart_report,
+                        }
+                        st.session_state["new_carrier_suite_results"] = _suite_results
+                        _persist_new_carrier_run(notes=f"Ran {_suite_name} suite.")
+                        if _result.returncode == 0:
+                            st.success(f"{_suite_name.title()} suite passed.")
+                        else:
+                            st.error(f"{_suite_name.title()} suite failed with exit code {_result.returncode}.")
+                    except Exception as exc:
+                        st.error(f"Failed to run {_suite_name}: {exc}")
+        with _suite_col4:
+            if st.button(
+                "▶ Run All",
+                key="new_carrier_run_all",
+                use_container_width=True,
+                disabled=(not bool(_env_path)) or (not st.session_state.get("new_carrier_registration_done")),
+            ):
+                _suite_results = dict(st.session_state.get("new_carrier_suite_results") or {})
+                try:
+                    for _suite_name in ("smoke", "sanity", "regression"):
+                        with st.spinner(f"Running {_suite_name} suite in automation repo..."):
+                            _result = run_carrier_suite(
+                                env_path=_env_path,
+                                suite=_suite_name,
+                                project=_runner_project,
+                                headed=_runner_headed,
+                            )
+                        _suite_results[_suite_name] = {
+                            "suite": _result.suite,
+                            "command": _result.command,
+                            "returncode": _result.returncode,
+                            "stdout": _result.stdout,
+                            "stderr": _result.stderr,
+                            "duration_seconds": _result.duration_seconds,
+                            "html_report": _result.html_report,
+                            "smart_report": _result.smart_report,
+                        }
+                    st.session_state["new_carrier_suite_results"] = _suite_results
+                    _persist_new_carrier_run(notes="Ran smoke, sanity, and regression suites.")
+                    st.success("Completed smoke, sanity, and regression runs.")
+                except Exception as exc:
+                    st.session_state["new_carrier_suite_results"] = _suite_results
+                    st.error(f"Failed during suite execution: {exc}")
+
+        _suite_results = st.session_state.get("new_carrier_suite_results") or {}
+        st.markdown("### Readiness Summary")
+        _required_suites = ("smoke", "sanity", "regression")
+        _missing_steps: list[str] = []
+        if not _env_path:
+            _missing_steps.append("Generate the carrier env file.")
+        if not st.session_state.get("new_carrier_registration_done"):
+            _missing_steps.append("Complete the manual carrier registration checkpoint.")
+        _suite_passes = {
+            _suite_name: bool(_suite_results.get(_suite_name)) and int((_suite_results.get(_suite_name) or {}).get("returncode", 1) or 1) == 0
+            for _suite_name in _required_suites
+        }
+        for _suite_name in _required_suites:
+            if _env_path and st.session_state.get("new_carrier_registration_done") and not _suite_results.get(_suite_name):
+                _missing_steps.append(f"Run the {_suite_name} suite.")
+
+        _all_passed = all(_suite_passes.values()) if _suite_results else False
+        _summary_col1, _summary_col2, _summary_col3, _summary_col4 = st.columns(4)
+        _summary_col1.metric("Smoke", "PASS" if _suite_passes["smoke"] else "Pending" if "Run the smoke suite." in _missing_steps else "Fail")
+        _summary_col2.metric("Sanity", "PASS" if _suite_passes["sanity"] else "Pending" if "Run the sanity suite." in _missing_steps else "Fail")
+        _summary_col3.metric("Regression", "PASS" if _suite_passes["regression"] else "Pending" if "Run the regression suite." in _missing_steps else "Fail")
+        _summary_col4.metric("Verdict", "READY" if _all_passed and not _missing_steps else "NOT READY")
+
+        if _all_passed and not _missing_steps:
+            st.success("New carrier validation is ready: manual registration is confirmed and smoke, sanity, plus regression all passed.")
+        else:
+            _failure_items = [
+                f"{_suite_name.title()} failed."
+                for _suite_name, _passed in _suite_passes.items()
+                if _suite_results.get(_suite_name) and not _passed
+            ]
+            _summary_items = _missing_steps + _failure_items
+            if _summary_items:
+                st.info("\n".join(f"- {_item}" for _item in _summary_items))
+
+        if _suite_results:
+            st.markdown("### Suite Results")
+            for _suite_name in ("smoke", "sanity", "regression"):
+                _result = _suite_results.get(_suite_name)
+                if not _result:
+                    continue
+                _status = "✅ PASS" if int(_result.get("returncode", 1) or 1) == 0 else "❌ FAIL"
+                with st.expander(f"{_status} {_suite_name.title()}", expanded=False):
+                    st.caption(
+                        f"Duration: {float(_result.get('duration_seconds', 0.0) or 0.0):.1f}s | "
+                        f"Command: `{' '.join(_result.get('command', []))}`"
+                    )
+                    _html_report = _result.get("html_report", "")
+                    _smart_report = _result.get("smart_report", "")
+                    if _html_report:
+                        st.markdown(f"HTML report: `{_html_report}`")
+                    if _smart_report:
+                        st.markdown(f"Smart report: `{_smart_report}`")
+                    if _result.get("stdout"):
+                        st.code(_result["stdout"][-6000:], language="text")
+                    if _result.get("stderr"):
+                        st.code(_result["stderr"][-4000:], language="text")
+
+        st.markdown("### Open Files")
+        _latest_html_report = ""
+        _latest_smart_report = ""
+        for _suite_name in ("regression", "sanity", "smoke"):
+            _result = (_suite_results or {}).get(_suite_name) or {}
+            if not _latest_html_report and _result.get("html_report"):
+                _latest_html_report = str(_result.get("html_report"))
+            if not _latest_smart_report and _result.get("smart_report"):
+                _latest_smart_report = str(_result.get("smart_report"))
+
+        _file_rows: list[tuple[str, str]] = []
+        if _env_path:
+            _file_rows.append(("Carrier env", _env_path))
+        if _run_file:
+            _file_rows.append(("Saved run", _run_file))
+        if _latest_html_report:
+            _file_rows.append(("HTML report", _latest_html_report))
+        if _latest_smart_report:
+            _file_rows.append(("Smart report", _latest_smart_report))
+
+        if _file_rows:
+            for _label, _path in _file_rows:
+                _resolved = Path(_path).expanduser()
+                if _resolved.exists():
+                    st.markdown(f"{_label}: [{_resolved.name}]({_resolved}:{1})")
+                else:
+                    st.markdown(f"{_label}: `{_path}`")
+        else:
+            st.caption("Generate the carrier env or run a suite to populate quick links here.")
 
     with tab_history:
         st.markdown("## 📋 Pipeline Run History")

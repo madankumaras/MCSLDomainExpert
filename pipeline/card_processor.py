@@ -154,10 +154,20 @@ Work research-first, not card-text-first.
 Before writing the final AC, ground yourself in the structured brief below:
 - card type
 - linked references
+- linked handoff summary
 - customer issue or merchant-impact signals
 - toggle / feature-flag prerequisites
 - known prerequisites and risks
 - MCSL source priority
+
+Source-of-truth rules:
+- If the linked Trello/Zendesk handoff contains concrete carrier, customer, workflow, or broken-behaviour facts, those facts override generic carrier/customs patterns.
+- If Trello comments conflict with the linked handoff / linked reference card, prefer the linked handoff facts and treat the conflicting comment as stale or untrusted.
+- Do NOT introduce a carrier, toggle, field, button, setting, or workflow unless it is supported by the raw request, linked references, developer/QA comments, or research context.
+- If the raw request / linked references say UPS and the research only gives generic customs context, stay with UPS. Do not expand to FedEx/DHL just because the topic is international/customs.
+- If the evidence describes a bug fix, keep the AC anchored to the same broken-vs-fixed behavior. Do not rewrite it into a broader feature proposal.
+- Do not expand a product-management or CSV bulk-update issue into order-level import/export, request-log, label-artifact, or tracking scenarios unless the linked handoff explicitly requires that downstream scope.
+- Trello comments may add rollout notes, examples, or implementation constraints, but they must not redefine the core broken behavior when a linked handoff already defines it.
 
 Structured brief:
 {generation_brief}
@@ -170,6 +180,9 @@ Raw feature request:
 
 Developer / QA comments:
 {comments_context}
+
+Trello labels:
+{labels_context}
 
 Write Acceptance Criteria in this format:
 ### Acceptance Criteria
@@ -187,6 +200,8 @@ Navigation: ORDERS tab flow, App Settings → Carriers → Add/Edit.
 Work from real MCSL behaviour, not generic shipping assumptions.
 Use the carrier scope, QA knowledge, automation context, code context, and retrospective QA learnings when they help.
 Do not write mobile / responsive / viewport test cases.
+Do not invent carriers, toggles, fields, buttons, or workflows that are not supported by the current AC, card description, linked references, or provided research context.
+If the card/AC is carrier-specific, keep all test cases inside that carrier scope unless explicit regression evidence requires a broader check.
 
 IMPORTANT: Use EXACTLY this format for each test case:
 ### TC-{{n}}: {{scenario title}}
@@ -206,7 +221,9 @@ Rules:
 - Keep steps executable in the MCSL app, Shopify Admin, or API flow where relevant.
 - Reuse exact app/navigation terms when possible.
 - When source code context is provided, align with real field names, validations, service mapping, and error handling.
-- When Trello comments are provided, incorporate rollout notes, toggle details, and implementation constraints from them.
+- Use Trello comments for rollout notes, toggle details, and implementation constraints only when they do not conflict with the linked handoff or current AC scope.
+- If comments describe a different workflow than the linked handoff or current AC, ignore the conflicting comment rather than blending both stories together.
+- Do not turn a product CSV configuration bug into order import/export, request-log, label, or tracking scenarios unless the current AC explicitly includes those checks.
 - When past QA feedback is provided, cover the gaps that were previously missed.
 
 ---
@@ -317,6 +334,12 @@ Review for:
 - unsupported claims not grounded in the structured brief or research
 - missing regression or customer-impact scenarios for bug-style requests
 - missing toggle prerequisites when a toggle or feature flag is involved
+- invented carriers not present in the brief / research / raw request
+- invented toggles, fields, buttons, or UI settings not present in the brief / research / raw request
+- drafts that ignore linked-handoff facts and drift into a generic carrier/customs story
+- drafts where Trello comments appear to override a more specific linked handoff
+- workflow-level drift, for example product-level CSV update rewritten as order-level import/export
+- invented request-log, payload, label-artifact, or tracking-record checks that are not required by the linked handoff or raw request
 
 Structured brief:
 {generation_brief}
@@ -372,6 +395,44 @@ def _extract_urls(text: str) -> list[str]:
     return urls
 
 
+def _summarize_text_block(text: str, *, max_lines: int = 6, max_chars: int = 850) -> str:
+    cleaned = re.sub(r"\r", "", text or "").strip()
+    if not cleaned:
+        return ""
+    lines: list[str] = []
+    for line in cleaned.splitlines():
+        compact = re.sub(r"\s+", " ", line).strip()
+        if not compact:
+            continue
+        if compact.startswith("|") or compact.startswith("---"):
+            continue
+        lines.append(compact)
+        if len(lines) >= max_lines:
+            break
+    summary = " ".join(lines)
+    return summary[:max_chars]
+
+
+def _build_linked_reference_summary(urls: list[str]) -> list[str]:
+    summaries: list[str] = []
+    for url in urls[:4]:
+        ref = _friendly_ref(url)
+        if ref != "Trello":
+            continue
+        try:
+            title, desc = get_ac_text(url)
+        except Exception:
+            title, desc = "", ""
+        if not title and not desc:
+            continue
+        snippet = _summarize_text_block(desc, max_lines=8, max_chars=950)
+        if snippet:
+            summaries.append(f"- [{ref}] {title or url}\n  {snippet}")
+        else:
+            summaries.append(f"- [{ref}] {title or url}")
+    return summaries
+
+
 def _friendly_ref(url: str) -> str:
     host = urlparse(url).netloc.lower().replace("www.", "")
     if "trello" in host:
@@ -394,17 +455,28 @@ def _friendly_ref(url: str) -> str:
 
 
 def _classify_card_type(raw_request: str, research_context: str, comments_context: str = "") -> str:
-    text = f"{raw_request}\n{research_context}\n{comments_context}".lower()
-    if any(k in text for k in ("zendesk", "customer issue", "merchant issue", "support", "bug", "fix", "regression")):
+    anchored_text = f"{raw_request}\n{research_context}".lower()
+    full_text = f"{raw_request}\n{research_context}\n{comments_context}".lower()
+    if any(
+        k in anchored_text
+        for k in ("csv import", "csv update", "bulk update", "product-management", "product level", "signature option")
+    ):
         return "bug_fix_or_customer_issue"
-    if any(k in text for k in ("toggle", "feature flag", "rollout", "enable on store")):
+    if _extract_urls(raw_request):
+        if any(k in anchored_text for k in ("zendesk", "customer", "merchant", "support", "ticket", "issue", "bug", "fix", "regression")):
+            return "bug_fix_or_customer_issue"
+    if any(k in anchored_text for k in ("zendesk", "customer issue", "merchant issue", "support", "bug", "fix", "regression")):
+        return "bug_fix_or_customer_issue"
+    if any(k in anchored_text for k in ("toggle", "feature flag", "rollout", "enable on store")):
         return "toggle_or_rollout_change"
-    if any(k in text for k in ("rate", "checkout", "service availability", "shipping rate")):
+    if any(k in anchored_text for k in ("rate", "checkout", "service availability", "shipping rate")):
         return "rates_or_checkout_behaviour"
-    if any(k in text for k in ("customs", "commercial invoice", "cn22", "country of origin", "hs code")):
+    if any(k in anchored_text for k in ("customs", "commercial invoice", "cn22", "country of origin", "hs code")):
         return "customs_or_document_behaviour"
-    if any(k in text for k in ("carrier", "credentials", "account", "service mapping")):
+    if any(k in anchored_text for k in ("carrier", "credentials", "account", "service mapping")):
         return "carrier_or_configuration_change"
+    if any(k in full_text for k in ("zendesk", "customer issue", "merchant issue", "support", "bug", "fix", "regression")):
+        return "bug_fix_or_customer_issue"
     return "new_feature_or_general_change"
 
 
@@ -414,7 +486,8 @@ def _extract_prerequisites(
     checklists: list[dict],
     comments_context: str = "",
 ) -> list[str]:
-    text = f"{raw_request}\n{research_context}\n{comments_context}"
+    anchored_text = f"{raw_request}\n{research_context}"
+    text = f"{anchored_text}\n{comments_context}"
     prerequisites: list[str] = []
 
     try:
@@ -428,17 +501,18 @@ def _extract_prerequisites(
         prerequisites.append("Feature toggle(s) may need store enablement before QA: " + ", ".join(toggles))
 
     lower = text.lower()
+    lower_anchored = anchored_text.lower()
     if "zendesk" in lower or "customer issue" in lower:
         prerequisites.append("Review the linked customer/support issue and preserve the real broken-vs-fixed behavior.")
-    if any(k in lower for k in ("generate label", "label generation", "manual label")):
+    if any(k in lower_anchored for k in ("generate label", "label generation", "manual label")):
         prerequisites.append("Requires a valid store, carrier setup, and an order state that supports label generation.")
-    if any(k in lower for k in ("customs", "commercial invoice", "cn22", "hs code", "country of origin")):
+    if any(k in lower_anchored for k in ("customs", "commercial invoice", "cn22", "hs code", "country of origin")):
         prerequisites.append("Requires product-level customs data and document verification for the affected shipment flow.")
-    if any(k in lower for k in ("rate", "checkout")):
+    if any(k in lower_anchored for k in ("rate", "checkout")):
         prerequisites.append("Requires a reproducible checkout or rate-request scenario with matching cart and address data.")
-    if any(k in lower for k in ("pickup", "schedule pickup")):
+    if any(k in lower_anchored for k in ("pickup", "schedule pickup")):
         prerequisites.append("Requires a labeled shipment/order before pickup verification.")
-    if any(k in lower for k in ("packaging", "packing method", "dimensions", "weight")):
+    if any(k in lower_anchored for k in ("packaging", "packing method", "dimensions", "weight")):
         prerequisites.append("Packaging scenarios require explicit packaging method, dimensions, and weight setup.")
 
     for checklist in (checklists or [])[:3]:
@@ -464,26 +538,32 @@ def _build_generation_brief(
     checklists: list[dict],
     research_context: str,
     comments_context: str,
+    labels_context: str = "",
 ) -> str:
-    urls: list[str] = []
+    primary_urls: list[str] = []
+    secondary_urls: list[str] = []
     seen_urls: set[str] = set()
-    for url in _extract_urls(raw_request + "\n" + research_context + "\n" + comments_context):
+    for url in _extract_urls(raw_request + "\n" + research_context):
         if url not in seen_urls:
             seen_urls.add(url)
-            urls.append(url)
+            primary_urls.append(url)
+    for url in _extract_urls(comments_context):
+        if url not in seen_urls:
+            seen_urls.add(url)
+            secondary_urls.append(url)
     for attachment in attachments or []:
         url = (attachment.get("url") or "").strip()
         if url and url not in seen_urls:
             seen_urls.add(url)
-            urls.append(url)
+            secondary_urls.append(url)
 
-    card_type = _classify_card_type(raw_request, research_context, comments_context)
-    prerequisites = _extract_prerequisites(raw_request, research_context, checklists or [], comments_context)
+    card_type = _classify_card_type(raw_request, research_context, f"{comments_context}\n{labels_context}")
+    prerequisites = _extract_prerequisites(raw_request, research_context, checklists or [], f"{comments_context}\n{labels_context}")
 
     try:
         from pipeline.slack_client import detect_toggles
 
-        toggles = detect_toggles(raw_request, "", f"{research_context}\n{comments_context}")
+        toggles = detect_toggles(raw_request, "", f"{research_context}\n{comments_context}\n{labels_context}")
     except Exception:
         toggles = []
 
@@ -500,17 +580,36 @@ def _build_generation_brief(
         lines.append("Detected toggles / feature flags: " + ", ".join(toggles))
 
     if comments_context.strip():
-        lines.append("Developer / QA comment context is available and may contain rollout notes, toggle details, or clarifications.")
+        lines.append("Developer / QA comment context is available, but it is secondary evidence and must not override linked-handoff facts.")
+    if labels_context.strip():
+        lines.append("Trello labels are available and may identify the carrier, domain area, severity, or rollout scope.")
 
     if prerequisites:
         lines.append("")
         lines.append("Likely prerequisites:")
         lines.extend(f"- {item}" for item in prerequisites)
 
-    if urls:
+    if primary_urls:
         lines.append("")
-        lines.append("Linked references already detected:")
-        lines.extend(f"- [{_friendly_ref(url)}] {url}" for url in urls[:12])
+        lines.append("Primary linked references detected from raw card / research:")
+        lines.extend(f"- [{_friendly_ref(url)}] {url}" for url in primary_urls[:12])
+        linked_summaries = _build_linked_reference_summary(primary_urls)
+        if linked_summaries:
+            lines.append("")
+            lines.append("Linked handoff summary:")
+            lines.extend(linked_summaries)
+    if secondary_urls:
+        lines.append("")
+        lines.append("Secondary references detected from Trello comments / attachments:")
+        lines.extend(f"- [{_friendly_ref(url)}] {url}" for url in secondary_urls[:12])
+        lines.append("Use these only for rollout notes or implementation hints. Ignore them if they conflict with the linked handoff.")
+
+    lines.append("")
+    lines.append("Do not drift from linked-handoff facts:")
+    lines.append("- Do not swap the carrier unless the linked handoff or raw card clearly says so.")
+    lines.append("- Do not add a toggle, field, or UI control unless evidence explicitly mentions it.")
+    lines.append("- Treat unsupported extra features as out of scope, even if they sound plausible.")
+    lines.append("- If comments and linked handoff disagree, prefer the linked handoff and treat the comment as stale or contaminated.")
 
     return "\n".join(lines)
 
@@ -557,6 +656,7 @@ def generate_acceptance_criteria(
     research_context: str | None = None,
     comments_context: str | None = None,
     labels: list[str] | None = None,
+    labels_context: str | None = None,
     *,
     review: bool = False,
 ) -> str:
@@ -566,6 +666,7 @@ def generate_acceptance_criteria(
     labels: Trello card labels — used to pin the correct carrier scope.
     """
     labels_text = _labels_carrier_hint(labels)
+    labels_context = labels_context or "\n".join(labels or [])
     # Prepend the carrier hint to raw_request so it reaches the prompt template
     # and the generation brief without changing the template signature.
     effective_request = f"{labels_text}\n\n{raw_request}" if labels_text else raw_request
@@ -575,10 +676,12 @@ def generate_acceptance_criteria(
         checklists=checklists or [],
         research_context=research_context or "",
         comments_context=comments_context or "",
+        labels_context=labels_context or "",
     )
     prompt = AC_WRITER_PROMPT.format(
         raw_request=effective_request,
         comments_context=comments_context or "None",
+        labels_context=labels_context or "None",
         generation_brief=generation_brief,
         research_context=research_context or "None",
     )
@@ -597,13 +700,15 @@ def generate_acceptance_criteria(
     )
 
 
-def generate_test_cases(card, model: str | None = None, ac_text: str | None = None) -> str:
+def generate_test_cases(card, model: str | None = None, ac_text: str | None = None, labels_context: str | None = None) -> str:
     """Generate test cases for a TrelloCard using Claude.
 
     card is a TrelloCard — uses card.name, card.desc, card.comments.
     """
     comments = getattr(card, "comments", None) or []
     comments_text = "\n".join(comments) if comments else "None"
+    _label_list = list(getattr(card, "labels", None) or [])
+    _labels_text = (labels_context or "\n".join(_label_list)).strip() or "None"
     _requirements_text = (ac_text or card.desc or "").strip()
     ac_text_str = _requirements_text or "(no AC yet)"
     dev_comments_section = _build_dev_comments_section(comments)
@@ -613,6 +718,7 @@ def generate_test_cases(card, model: str | None = None, ac_text: str | None = No
         from pipeline.carrier_knowledge import carrier_research_context
 
         carrier_context = carrier_research_context(card.name, _requirements_text, comments_text, labels_hint)
+        carrier_context = carrier_research_context(card.name, _requirements_text, comments_text, labels_hint or _labels_text)
     except Exception:
         carrier_context = "Carrier scope unavailable."
     carrier_context_section = (
@@ -652,7 +758,10 @@ def generate_test_cases(card, model: str | None = None, ac_text: str | None = No
     prompt = TEST_CASE_PROMPT.format(
         card_name=card.name,
         card_desc=_requirements_text or "(no description)",
-        dev_comments_section=dev_comments_section,
+        dev_comments_section=(
+            dev_comments_section
+            + (f"\nTrello labels:\n- " + "\n- ".join(_label_list) + "\n" if _label_list else "")
+        ),
         carrier_context_section=carrier_context_section,
         rag_context_section=rag_context_section,
         code_context_section=code_context_section,

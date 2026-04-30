@@ -12,6 +12,7 @@ Use these docs as the current handoff set:
 - [docs/FEDEX_FLOW_PARITY_NOTES.md](/Users/madan/Documents/MCSLDomainExpert/docs/FEDEX_FLOW_PARITY_NOTES.md:1)
 - [docs/MCSL_PLATFORM_ADAPTATION_PLAN.md](/Users/madan/Documents/MCSLDomainExpert/docs/MCSL_PLATFORM_ADAPTATION_PLAN.md:1)
 - [docs/MCSL_CARRIER_KNOWLEDGE_RESEARCH.md](/Users/madan/Documents/MCSLDomainExpert/docs/MCSL_CARRIER_KNOWLEDGE_RESEARCH.md:1)
+- [docs/NEW_CARRIER_VALIDATION_PLAN.md](/Users/madan/Documents/MCSLDomainExpert/docs/NEW_CARRIER_VALIDATION_PLAN.md:1)
 
 ## Repo Intent
 
@@ -111,6 +112,26 @@ Current automation matching behavior:
 - detect existing-vs-new feature areas
 - prefer updating existing MCSL automation coverage
 - use `feature_detector` and `find_pom`
+
+## New Carrier Validation Rules
+
+Planned workflow:
+- create store
+- install app
+- stop for manual carrier registration
+- create Shopify products required by automation
+- generate carrier env file
+- run smoke / sanity / regression
+- report readiness
+
+Important:
+- this flow should not pre-create orders; the automation repo already creates orders from env-backed product IDs
+- product provisioning must populate:
+  - `SIMPLE_PRODUCTS_JSON`
+  - `VARIABLE_PRODUCTS_JSON`
+  - `DIGITAL_PRODUCTS_JSON`
+  - `DANGEROUS_PRODUCTS_JSON`
+- use deterministic product templates, not random catalog generation, for the first version
 
 ## Toggle Rules
 

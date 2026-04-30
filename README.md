@@ -31,6 +31,16 @@ Top-level tabs:
 8. `✅ Sign Off`
 9. `📘 Handoff Docs`
 
+Planned next major workflow:
+- `🚚 New Carrier Validation`
+  - create store
+  - install app
+  - manual carrier registration checkpoint
+  - create required Shopify products
+  - generate carrier env file with product IDs
+  - run smoke / sanity / regression
+  - publish readiness report
+
 ## Current QA Flow
 
 Shared release state is loaded in `🧾 Validate AC` and reused in downstream tabs.
@@ -167,3 +177,4 @@ pytest -q tests/test_toggle_state.py
 - [docs/MCSL_CARRIER_SUPPORT_REGISTRY.md](/Users/madan/Documents/MCSLDomainExpert/docs/MCSL_CARRIER_SUPPORT_REGISTRY.md:1)
 - [docs/MCSL_CARRIER_CAPABILITY_MATRIX.md](/Users/madan/Documents/MCSLDomainExpert/docs/MCSL_CARRIER_CAPABILITY_MATRIX.md:1)
 - [docs/MCSL_CARRIER_REQUEST_REGISTRY.md](/Users/madan/Documents/MCSLDomainExpert/docs/MCSL_CARRIER_REQUEST_REGISTRY.md:1)
+- [docs/NEW_CARRIER_VALIDATION_PLAN.md](/Users/madan/Documents/MCSLDomainExpert/docs/NEW_CARRIER_VALIDATION_PLAN.md:1)

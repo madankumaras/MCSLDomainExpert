@@ -373,7 +373,9 @@ def test_ui10c_generate_tc_uses_current_ac_and_avoids_duplicate_trello_publish()
 
     src = inspect.getsource(pd)
     assert "_current_ac_for_tc" in src
-    assert "generate_test_cases(card, ac_text=_current_ac_for_tc)" in src
+    assert "generate_test_cases(" in src
+    assert "ac_text=_current_ac_for_tc" in src
+    assert "labels_context=\"\\n\".join(getattr(card, \"labels\", []) or [])" in src
     assert "regenerate_with_feedback(" in src and "ac_text=_current_ac_for_tc" in src
     assert "_tc_trello_saved_key = f\"tc_trello_saved_{card.id}\"" in src
     assert "if not st.session_state.get(_tc_trello_saved_key, False):" in src
@@ -703,3 +705,17 @@ def test_signoff02_send_signoff_posts_slack():
     # move_card_to_list_by_id must be called from signoff context
     assert "move_card_to_list_by_id" in src, \
         "move_card_to_list_by_id not found in pipeline_dashboard source"
+
+
+def test_dashboard_wiki_has_pull_sync_and_full_reindex_controls():
+    """Wiki section should mirror codebase controls with Pull & Sync plus Full Re-index."""
+    import inspect
+    import pipeline_dashboard as pd
+
+    src = inspect.getsource(pd)
+
+    assert 'with st.expander("📖 MCSL Wiki")' in src
+    assert 'st.button("Pull & Sync", key="wiki_sync_btn"' in src
+    assert 'st.button("Full Re-index", key="wiki_reindex_btn"' in src
+    assert "_pull_and_sync_wiki(" in src
+    assert "_reindex_wiki_documents(" in src

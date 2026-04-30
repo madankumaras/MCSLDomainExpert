@@ -118,7 +118,40 @@ def test_requirement_research_gracefully_degrades_without_rag():
     assert "Requirement research for User Story / AC" in result
     assert "Carrier context" in result
     assert "Relevant proven UI/navigation hints" in result
-    assert "Official carrier/platform findings from local RAG" in result
+
+
+def test_mcsl_generation_brief_prioritizes_linked_handoff_over_comment_refs():
+    """Generation brief should separate primary linked handoff refs from secondary comment refs."""
+    from pipeline.card_processor import _build_generation_brief
+
+    with patch("pipeline.card_processor._build_linked_reference_summary", return_value=["- Handoff says bulk product CSV signature update"]):
+        result = _build_generation_brief(
+            raw_request="Customer issue: bulk product CSV signature update broken https://trello.com/c/h4E0nWH6",
+            attachments=[{"url": "https://trello.com/1/cards/example/attachments/analysis.md"}],
+            checklists=[],
+            research_context="Customer impact is bulk product management failure.",
+            comments_context="Wrong note: inspect Request Log after order CSV import https://trello.com/c/wrongRef",
+            labels_context="SL: FedEx",
+        )
+
+    assert "Primary linked references detected from raw card / research:" in result
+    assert "Secondary references detected from Trello comments / attachments:" in result
+    assert "Handoff says bulk product CSV signature update" in result
+    assert "prefer the linked handoff and treat the comment as stale or contaminated" in result
+
+
+def test_mcsl_prerequisites_ignore_label_generation_when_only_comments_mention_it():
+    """Label-generation prerequisites should not be inferred only from noisy comments."""
+    from pipeline.card_processor import _extract_prerequisites
+
+    result = _extract_prerequisites(
+        raw_request="CSV product signature update broken after migration.",
+        research_context="Customer needs bulk product update to work again.",
+        checklists=[],
+        comments_context="After import, inspect Request Log and generate label to confirm payload.",
+    )
+
+    assert all("label generation" not in item.lower() for item in result)
 
 
 def test_dashboard_ac_generation_path_keeps_research_and_timestamp_hooks():
@@ -128,7 +161,9 @@ def test_dashboard_ac_generation_path_keeps_research_and_timestamp_hooks():
     assert "from datetime import datetime" in src
     assert 'if st.button("🤖 Generate User Story & AC"' in src
     assert "from pipeline.requirement_research import build_requirement_research_context" in src
-    assert "_research = build_requirement_research_context(_raw)" in src
+    assert "_labels = " in src
+    assert "_research = build_requirement_research_context(f\"{_raw}\\n{_labels}\".strip())" in src
+    assert "labels_context=_labels" in src
     assert "ac_generated_at=datetime.now().isoformat(timespec=\"seconds\")" in src
 
 
@@ -501,6 +536,74 @@ def test_rqa04_append_to_sheet_returns_meta():
     assert "rows_added" in result and isinstance(result["rows_added"], int)
 
 
+def test_rqa04_append_to_sheet_ai_tab_layout_mapping():
+    """append_to_sheet() writes MCSL AI tab rows using the live 12-column layout."""
+    header_row = [[
+        "Sl no",
+        "Epics ( Title)",
+        "Scenario",
+        "Feature",
+        "Description",
+        "Comments",
+        "Automated",
+        "Details/Transaction ID\n [Shopify]",
+        "Pass/Fail \n[Shopify]",
+        "Details/Transaction ID \n[Woocommerce]",
+        "Pass/Fail \n[Woocommerce]",
+        "Remarks",
+    ]]
+
+    mock_ws = MagicMock()
+    mock_ws.get_all_values.return_value = header_row
+    mock_ws.append_row = MagicMock()
+    mock_ws.title = "AI "
+
+    mock_sh = MagicMock()
+    mock_sh.worksheets.return_value = [mock_ws]
+    mock_sh.worksheet.return_value = mock_ws
+
+    mock_gc = MagicMock()
+    mock_gc.open_by_key.return_value = mock_sh
+
+    mock_gspread = MagicMock()
+    mock_gspread.authorize.return_value = mock_gc
+
+    mock_creds_cls = MagicMock()
+    mock_creds_cls.from_service_account_file.return_value = MagicMock()
+
+    import sys
+    with patch.dict(sys.modules, {"gspread": mock_gspread, "google.oauth2.service_account": MagicMock()}), \
+         patch("pipeline.sheets_writer.check_duplicates", return_value=[]):
+        sys.modules["google.oauth2.service_account"].Credentials = mock_creds_cls
+
+        from pipeline.sheets_writer import append_to_sheet
+        result = append_to_sheet(
+            "Fix Issues in Order Export - Tracking Number & Tracking Update",
+            """## TC-1: Export shows clean tracking number
+**Type:** Positive
+**Priority:** High
+**Preconditions:** Fulfilled order exists
+**Steps:**
+Given export data is valid
+When report is generated
+Then tracking_number is clean""",
+            epic="Fix Issues in Order Export - Tracking Number & Tracking Update",
+            tab_name="AI",
+            release="MCSL 378",
+        )
+
+    appended = mock_ws.append_row.call_args.args[0]
+    assert result["tab"] == "AI "
+    assert len(appended) == 12
+    assert appended[1] == "Fix Issues in Order Export - Tracking Number & Tracking Update"
+    assert appended[2] == "Export shows clean tracking number"
+    assert appended[3] == ""
+    assert appended[4] == "Given export data is valid\nWhen report is generated\nThen tracking_number is clean"
+    assert appended[5] == "Fulfilled order exists"
+    assert appended[6] == "No"
+    assert appended[11] == "Priority: High | Release: MCSL 378"
+
+
 def test_rqa04_detect_tab_keyword_match():
     """detect_tab() returns 'Shipping Labels' for a card name containing 'label'."""
     from pipeline.sheets_writer import detect_tab
@@ -698,6 +801,39 @@ def test_rqa02_generate_tc_prompt_includes_structured_context_sections():
     assert "Developer / QA comments from Trello" in all_content
     assert "Similar past test cases from the QA knowledge base" in all_content or "Feature Card:" in all_content
     assert "Relevant automation / code context" in all_content or "Feature Card:" in all_content
+
+
+def test_rqa02_generate_tc_prompt_includes_trello_labels_for_carrier_scope():
+    """generate_test_cases() should include Trello labels so label-only carrier cards keep carrier context."""
+    captured_messages = []
+    fake_response = MagicMock()
+    fake_response.content = "### TC-1: UPS label\n**Type:** Positive\n**Priority:** High\n**Preconditions:** UPS configured\n**Steps:**\nGiven setup exists\nWhen label is generated\nThen UPS flow succeeds"
+
+    def fake_invoke(messages):
+        captured_messages.extend(messages)
+        return fake_response
+
+    import pipeline.card_processor as cp
+
+    with patch.object(cp, "_make_llm") as mock_llm_factory:
+        mock_llm = MagicMock()
+        mock_llm.invoke.side_effect = fake_invoke
+        mock_llm_factory.return_value = mock_llm
+
+        from pipeline.trello_client import TrelloCard
+
+        card = TrelloCard(
+            id="c3",
+            name="Discounted price not reflected on commercial invoice",
+            desc="Commercial invoice issue",
+            comments=[],
+            labels=["UPS", "SL: International & Customs"],
+        )
+        cp.generate_test_cases(card)
+
+    all_content = " ".join(getattr(m, "content", str(m)) for m in captured_messages)
+    assert "Trello labels" in all_content
+    assert "UPS" in all_content
 
 
 def test_slack_toggle_detection_handles_store_enablement_and_unquoted_shopify_keys():

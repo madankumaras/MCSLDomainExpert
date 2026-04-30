@@ -36,6 +36,11 @@ MCSL_AUTOMATION_REPO_PATH = os.getenv(
     str(Path.home() / "Documents" / "mcsl-test-automation"),
 )
 
+MCSL_CHROME_AUTH_PATH = os.getenv(
+    "MCSL_CHROME_AUTH_PATH",
+    str(Path(MCSL_AUTOMATION_REPO_PATH) / "auth-chrome.json"),
+)
+
 WIKI_PATH = os.getenv(
     "WIKI_PATH",
     str(Path.home() / "Documents" / "mcsl-wiki" / "wiki"),

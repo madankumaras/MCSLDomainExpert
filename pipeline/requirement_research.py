@@ -52,6 +52,61 @@ def _extract_issue_queries(request_text: str) -> list[str]:
     return queries[:4]
 
 
+def _extract_urls(text: str) -> list[str]:
+    if not text:
+        return []
+    seen: set[str] = set()
+    urls: list[str] = []
+    for match in re.finditer(r"https?://[^\s)>]+", text):
+        url = match.group(0).rstrip(".,)")
+        if url not in seen:
+            seen.add(url)
+            urls.append(url)
+    return urls
+
+
+def _linked_reference_research(request_text: str) -> str:
+    urls = _extract_urls(request_text)
+    if not urls:
+        return ""
+
+    findings: list[str] = []
+    for url in urls[:4]:
+        if "trello.com/c/" not in url:
+            continue
+        try:
+            from pipeline.card_processor import get_ac_text
+
+            title, desc = get_ac_text(url)
+        except Exception as exc:
+            logger.debug("Linked Trello reference fetch skipped: %s", exc)
+            continue
+        if not title and not desc:
+            continue
+
+        desc_lines: list[str] = []
+        for line in (desc or "").splitlines():
+            compact = re.sub(r"\s+", " ", line).strip()
+            if not compact or compact.startswith("|") or compact.startswith("---"):
+                continue
+            desc_lines.append(compact)
+            if len(desc_lines) >= 8:
+                break
+        snippet = " ".join(desc_lines)[:900]
+        if snippet:
+            findings.append(f"- [Trello] {title or url}\n  {snippet}")
+        else:
+            findings.append(f"- [Trello] {title or url}")
+
+    if not findings:
+        return ""
+    return (
+        "Linked reference summaries:\n"
+        "Treat these linked handoff facts as higher priority than generic carrier or customs patterns.\n"
+        + "\n".join(findings)
+    )
+
+
 def _customer_issue_summary(request_text: str) -> str:
     lower = (request_text or "").lower()
     if not any(token in lower for token in ("zendesk", "customer", "merchant", "support", "ticket", "issue", "bug", "fix")):
@@ -219,6 +274,7 @@ def _build_requirement_research_context_cached(request_text: str, max_docs: int)
     parts = [
         part for part in (
             _customer_issue_summary(request_text),
+            _linked_reference_research(request_text),
             _trello_backlog_research(request_text),
             _carrier_platform_research(query, max_docs=max_docs),
             _app_behaviour_research(query, max_docs=max_docs),

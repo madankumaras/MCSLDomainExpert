@@ -21,6 +21,7 @@ env/
 
 # ── ChromaDB / vector store ────────────────────────────────────────
 data/chroma_db/
+data/new_carrier_runs/
 
 # ── macOS ──────────────────────────────────────────────────────────
 .DS_Store
