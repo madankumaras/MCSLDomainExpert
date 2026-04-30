@@ -1626,7 +1626,21 @@ def _network(page: Any, patterns: list[str] | None = None) -> str:
 
 
 def _get_app_frame(page: Any) -> Any:
-    """Return the app iframe Frame object, falling back to page if not found."""
+    """Return a FrameLocator for the MCSL app iframe.
+
+    Mirrors the mcsl-test-automation pattern:
+        page.frameLocator('iframe[name="app-iframe"]')
+
+    Uses FrameLocator (lazy resolution) so callers don't have to wait for the
+    iframe to appear before calling this — the frame is resolved when a locator
+    is actually used.  Falls back to eager Frame lookup and then to page if the
+    browser API is not available.
+    """
+    try:
+        return page.frame_locator('iframe[name="app-iframe"]')
+    except Exception:
+        pass
+    # Fallback: eager Frame object from page.frames
     try:
         for frame in page.frames:
             if "app-iframe" in (frame.name or ""):
@@ -1636,7 +1650,7 @@ def _get_app_frame(page: Any) -> Any:
                 return frame
     except Exception:
         pass
-    return page  # fallback to main page
+    return page  # last resort
 
 
 def _format_zip_for_context(extracted: dict) -> str:
@@ -1951,14 +1965,62 @@ def _macro_fill(
 
 
 def _preflight_open_order_summary(page: Any, result: ScenarioResult, order_id: str) -> bool:
-    frame = _get_app_frame(page)
+    _link_val = order_id if order_id.startswith("#") else f"#{order_id}"
 
+    page.wait_for_timeout(1000)
+
+    # Build a list of (strategy_name, click_fn) to try in order.
+    # Mirrors automation clickOrderId:
+    #   appFrame.getByRole("link", { name: orderID }).first().click()
+    # where appFrame = page.frameLocator('iframe[name="app-iframe"]')
+    _click_strategies: list[tuple[str, Any]] = []
+
+    # 1. frame_locator approach (lazy FrameLocator — matches TypeScript automation)
+    try:
+        _fl = page.frame_locator('iframe[name="app-iframe"]')
+        _lv = _link_val  # capture for lambda
+        _click_strategies.append(("frame_locator+getByRole",   lambda lv=_lv, fl=_fl: fl.get_by_role("link", name=lv).first.click(timeout=8000)))
+        _click_strategies.append(("frame_locator+has-text",    lambda lv=_lv, fl=_fl: fl.locator(f'a:has-text("{lv}")').first.click(timeout=5000)))
+        _click_strategies.append(("frame_locator+getByText",   lambda lv=_lv, fl=_fl: fl.get_by_text(lv).first.click(timeout=5000)))
+    except Exception:
+        pass
+
+    # 2. page.frame() approach (eager Frame object — direct frame reference)
+    try:
+        _f = page.frame(name="app-iframe")
+        if _f:
+            _lv = _link_val
+            _click_strategies.append(("frame_obj+getByRole",   lambda lv=_lv, f=_f: f.get_by_role("link", name=lv).first.click(timeout=8000)))
+            _click_strategies.append(("frame_obj+has-text",    lambda lv=_lv, f=_f: f.locator(f'a:has-text("{lv}")').first.click(timeout=5000)))
+    except Exception:
+        pass
+
+    # Try each strategy; return True on first success
+    for _strat_name, _click_fn in _click_strategies:
+        try:
+            _click_fn()
+            page.wait_for_timeout(1500)
+            logger.info("Preflight clicked order %s via strategy: %s", _link_val, _strat_name)
+            _record_macro_step(
+                result, action="click",
+                description=f"Preflight clicked order {_link_val} ({_strat_name})",
+                target=_link_val, selector=_strat_name,
+                locator_source=_strat_name, success=True, page=page,
+            )
+            return True
+        except Exception as _e:
+            logger.debug("Preflight order click strategy %s failed: %s", _strat_name, _e)
+            continue
+
+    # ── Slow path: use Add filter → Order Id filter ──
+    # Button label is "Add filter +" in the UI — use has-text to avoid exact mismatch.
     ok, selector, source = _macro_click(
         page,
         name="Add filter",
         selectors=[
-            ("role_button_exact", 'getByRole("button", { name: "Add filter" })', lambda: frame.get_by_role("button", name="Add filter", exact=True).click()),
-            ("text_exact", 'getByText("Add filter", { exact: true })', lambda: frame.get_by_text("Add filter", exact=True).click()),
+            ("css_has_text",     'button:has-text("Add filter")',                       lambda: frame.locator('button:has-text("Add filter")').first.click()),
+            ("role_button_partial", 'getByRole("button") with text Add filter',          lambda: frame.get_by_role("button", name=re.compile(r"Add filter")).first.click()),
+            ("text_contains",    'text=Add filter',                                      lambda: frame.locator("text=Add filter").first.click()),
         ],
     )
     _record_macro_step(
@@ -2639,7 +2701,9 @@ def _run_preflight_setup(
         else:
             setup_notes.append(f"Preflight could not open {destination}.")
 
-    if order_id and "orders" in nav_clicks:
+    _orders_in_plan = "orders" in nav_clicks or any("order" in str(s).lower() for s in nav_clicks)
+    _orders_in_scenario = "order" in scenario.lower()
+    if order_id and (_orders_in_plan or _orders_in_scenario):
         setup_notes.append(f"Use test order id {order_id} when filtering the ORDERS grid.")
         opened_order = _preflight_open_order_summary(page, result, order_id)
         if opened_order:
@@ -3310,6 +3374,17 @@ def _verify_scenario(
         except Exception as e:
             logger.warning(f"Order creation failed for {order_action}/{carrier_code}: {e}")
             # Continue without order — agent will attempt to find existing orders
+
+    # If no order was created, try to extract an order ID directly from the scenario text
+    # so that preflight can still navigate to it (e.g. "Click on order #3771").
+    if not order_id:
+        import re as _re_oid
+        _oid_match = _re_oid.search(r"#(\d{3,6})\b|order\s+(?:id\s+)?#?(\d{3,6})\b", scenario, _re_oid.IGNORECASE)
+        if _oid_match:
+            _raw = _oid_match.group(1) or _oid_match.group(2)
+            order_id = f"#{_raw}"
+            ctx = f"TARGET ORDER: {order_id}\n\n{ctx}"
+            logger.info("Extracted order ID from scenario text: %s", order_id)
 
     try:
         preflight_ctx = _run_preflight_setup(

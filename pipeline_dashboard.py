@@ -2067,11 +2067,12 @@ def main() -> None:
                 with st.spinner("Indexing wiki docs…"):
                     try:
                         from ingest.wiki_loader import load_wiki_docs
-                        from rag.vectorstore import get_vectorstore
+                        from rag.vectorstore import add_documents as _vs_add_documents
                         _docs = load_wiki_docs(wiki_path=_wiki_path_value)
                         if _docs:
-                            _vs = get_vectorstore()
-                            _vs.add_documents(_docs)
+                            # Use the batching wrapper (500 docs/batch) to stay under
+                            # ChromaDB's max_batch_size of 5461.
+                            _vs_add_documents(_docs)
                             _clear_generation_context_caches()
                             st.success(f"✅ Indexed {len(_docs)} wiki chunks.")
                             st.rerun()
